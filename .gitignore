@@ -1,0 +1,25 @@
+# ==== Credenciales / Configuración sensible ====
+# El .env real vive solo en local (contiene DB_PASSWORD). Copia de .env.example en su lugar.
+.env
+.env.*
+!.env.example
+
+# ==== Sistema operativo ====
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.DS_Store
+
+# ==== Editores / IDE ====
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ==== Logs y temporales ====
+*.log
+logs/
+*.tmp
+tmp/
+.cache/

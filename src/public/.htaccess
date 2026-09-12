@@ -1,0 +1,8 @@
+RewriteEngine On
+
+# No reescribir si el archivo o directorio existe (css, js, imágenes)
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+
+# Enrutar todo lo demás al front controller
+RewriteRule ^(.*)$ index.php?url=$1 [QSA,L]
