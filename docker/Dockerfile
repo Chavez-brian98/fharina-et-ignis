@@ -1,4 +1,4 @@
-FROM php:8.2-apache
+FROM php:8.2-fpm
 
 # 1. Instalar herramientas básicas del sistema (git y unzip son necesarios para Composer)
 RUN apt-get update && apt-get install -y \
@@ -16,7 +16,5 @@ RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
     && apt-get install -y nodejs \
     && rm -rf /var/lib/apt/lists/*
 
-# 4. Configuración de Apache
-RUN a2enmod rewrite
-ENV APACHE_DOCUMENT_ROOT /var/www/html/public
-RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/*.conf
+# 4. Definir el directorio de trabajo
+WORKDIR /var/www/html
