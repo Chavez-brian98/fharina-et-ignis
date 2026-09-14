@@ -610,9 +610,9 @@ INSERT INTO empleados (id, name, last_name, id_document, phone, address, birth_d
 (2, 'María', 'González', 'CAJ-0001', '5555-0102', 'Zona 3, Ciudad', '1995-07-22', '2023-06-15', 'Cajero', 1000.00);
 
 INSERT INTO users (employee_id, role_id, username, email, password_hash) VALUES
-(NULL, 1, 'admin', 'admin@bakery.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi'),
-(2, 2, 'mcajero', 'maria.gonzalez@bakery.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi'),
-(1, 3, 'cramirez', 'carlos.ramirez@bakery.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi');
+(NULL, 1, 'BRIAN JOSUE CHAVEZ RECINOS', 'admin@ignis.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi'),
+(2, 2, 'cajero', 'maria.gonzalez@bakery.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi'),
+(1, 3, 'ramirez', 'carlos.ramirez@bakery.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi');
 
 INSERT INTO promociones (id, name, promotion_type, discount_percentage, start_date, end_date, status) VALUES
 (1, '2x1 Pan de Queso', 'dos_por_uno', 50.00, DATE_SUB(CURDATE(), INTERVAL 7 DAY), DATE_ADD(CURDATE(), INTERVAL 7 DAY), 'active');
@@ -744,8 +744,8 @@ INSERT INTO notificaciones (destination_user_id, notification_type, title, messa
 (1, 'pedido_listo', 'Pedido listo', 'El pedido #4 está listo para recoger.', 'pedido', 4);
 
 INSERT INTO settings (setting_key, setting_value) VALUES
-('system_name', 'Bakery POS'),
-('business_name', 'Panadería El Horno Feliz'),
+('system_name', 'Panadería'),
+('business_name', 'Panadería'),
 ('address', 'Av. Central #123, Centro'),
 ('phone', '5555-1234'),
 ('currency', '$'),

@@ -1,13 +1,12 @@
-<?php $systemName = setting('system_name', 'Bakery POS'); ?>
+<?php $businessName = setting('business_name', 'Panadería'); ?>
 <?php $systemLogo = setting('system_logo'); ?>
-<?php $businessName = setting('business_name', 'Panel de control'); ?>
 <?php $loginPhoto = setting('login_photo', 'https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=1200&q=80'); ?>
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?= esc($systemName) ?> · Iniciar sesión</title>
+    <title><?= esc($businessName) ?> · Iniciar sesión</title>
 
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
@@ -46,8 +45,8 @@
                             <i class="fa-solid fa-bread-slice"></i>
                         </div>
                     <?php endif; ?>
-                    <h1 class="text-xl font-bold text-gray-900"><?= esc($systemName) ?></h1>
-                    <p class="text-sm text-gray-500 mt-1"><?= esc($businessName) ?> · Inicia sesión en tu cuenta</p>
+                    <h1 class="text-xl font-bold text-gray-900"><?= esc($businessName) ?></h1>
+                    <p class="text-sm text-gray-500 mt-1">Inicia sesión en tu cuenta</p>
                 </div>
 
                 <form action="<?= url('auth/login') ?>" method="POST" class="space-y-5">

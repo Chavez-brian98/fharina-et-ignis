@@ -13,7 +13,7 @@
                 <i class="fa-solid fa-camera text-orange-500 mt-0.5"></i>
                 Apunta la cámara al código de barras del producto. El campo se completará automáticamente al detectarlo.
             </p>
-            <p class="mt-2 text-xs text-gray-400">Tip: usa el código de barras impreso en el empaque o genera uno desde la app de códigos de tu celular.</p>
+            <p class="mt-2 text-xs text-gray-400">Consejo: mantén el código plano y bien iluminado a unos 20-30 cm de la cámara, sin moverlo. Si tu webcam no enfoca bien, escríbelo manualmente o usa un teléfono.</p>
         </div>
     </div>
 </div>
@@ -41,10 +41,31 @@
             document.body.style.overflow = 'hidden';
 
             try {
-                html5QrCode = new Html5Qrcode('barcode-reader');
+                html5QrCode = new Html5Qrcode('barcode-reader', {
+                    formatsToSupport: [
+                        Html5QrcodeSupportedFormats.QR_CODE,
+                        Html5QrcodeSupportedFormats.EAN_13,
+                        Html5QrcodeSupportedFormats.EAN_8,
+                        Html5QrcodeSupportedFormats.UPC_A,
+                        Html5QrcodeSupportedFormats.UPC_E,
+                        Html5QrcodeSupportedFormats.CODE_128,
+                        Html5QrcodeSupportedFormats.CODE_39,
+                        Html5QrcodeSupportedFormats.CODE_93,
+                        Html5QrcodeSupportedFormats.ITF
+                    ]
+                });
                 html5QrCode.start(
                     { facingMode: 'environment' },
-                    { fps: 10, qrbox: { width: 250, height: 120 } },
+                    {
+                        fps: 15,
+                        disableFlip: true,
+                        qrbox: { width: 320, height: 140 },
+                        videoConstraints: {
+                            facingMode: 'environment',
+                            width: { ideal: 1280 },
+                            height: { ideal: 720 }
+                        }
+                    },
                     function (decodedText) {
                         document.getElementById('barcode').value = decodedText;
                         closeScanner();

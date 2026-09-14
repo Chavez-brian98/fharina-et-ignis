@@ -33,6 +33,10 @@ class SettingsController
             $this->settingModel->update($key, trim($_POST[$key] ?? ''));
         }
 
+        // system_name siempre refleja el nombre del negocio (en producción solo
+        // se muestra el nombre del negocio, no el del sistema).
+        $this->settingModel->update('system_name', trim($_POST['business_name'] ?? ''));
+
         foreach (['system_logo', 'login_photo'] as $field) {
             $path = upload_image($field);
             if ($path === false) {

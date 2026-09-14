@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?= isset($title) ? $title . ' | ' . setting('system_name', 'Bakery POS') : setting('system_name', 'Bakery POS') ?></title>
+    <title><?= isset($title) ? $title . ' | ' . setting('business_name', 'Panadería') : setting('business_name', 'Panadería') ?></title>
 
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
@@ -29,8 +29,7 @@
                     <?php endif; ?>
                 </div>
                 <div class="sidebar-text">
-                    <p class="font-bold text-gray-900 leading-tight truncate"><?= esc(setting('system_name', 'Bakery POS')) ?></p>
-                    <p class="text-xs text-gray-400"><?= esc(setting('business_name', 'Panel de control')) ?></p>
+                    <p class="font-bold text-gray-900 leading-tight truncate"><?= esc(setting('business_name', 'Panadería')) ?></p>
                 </div>
             </div>
             <button type="button" id="sidebarToggle" class="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:bg-orange-50 hover:text-orange-500 transition-colors shrink-0" title="Colapsar menú">

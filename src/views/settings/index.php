@@ -25,10 +25,6 @@
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div>
-                    <label for="system_name" class="form-label">Nombre del sistema</label>
-                    <input type="text" id="system_name" name="system_name" class="form-input" value="<?= esc($settings['system_name'] ?? '') ?>">
-                </div>
-                <div>
                     <label for="business_name" class="form-label">Nombre del negocio</label>
                     <input type="text" id="business_name" name="business_name" class="form-input" value="<?= esc($settings['business_name'] ?? '') ?>">
                 </div>
