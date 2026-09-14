@@ -77,7 +77,7 @@ docker/nginx/default.conf Nginx docroot /var/www/html/public; proxies PHP to app
 
 ## Gotchas
 
-- **Nginx routing gotcha**: `index.php` reads `$_GET['url']` (Apache set it via `index.php?url=$1`). The nginx `try_files $uri $uri/ /index.php?$query_string` does **not** populate `url`, so with the current `docker/nginx/default.conf` clean URLs like `/products` fall through to the default `dashboard` controller unless the `?url=...` mapping is reproduced in the nginx config.
+- **Nginx routing gotcha**: `index.php` reads `$_GET['url']` (Apache set it via `index.php?url=$1`). The nginx `try_files $uri $uri/ /index.php?$query_string` does **not** populate `url` (everything falls to the `dashboard` default → auth redirect loop). The fix is implemented in `docker/nginx/default.conf`: `location @rewrite` does `rewrite ^/(.*)$ /index.php?url=$1 last;` with `try_files $uri $uri/ @rewrite` — keep that `?url=` mapping when touching the nginx config.
 - No autoloader: every new controller/model must be `require_once`d in `src/public/index.php` (controllers also require their model). `vendor/`/`node_modules/` are host-mounted and committed; install locally in `src/` if missing.
 - `db/init.sql` starts with `SET NAMES utf8mb4` (keep it) or Spanish accents double-encode.
 - `src/.env.example` is stale (`DB_NAME=tiendita`); the real DB is `fharina_et_ignis` — copy from `src/.env`, not the example.
