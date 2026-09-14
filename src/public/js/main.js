@@ -1,6 +1,34 @@
 document.addEventListener('DOMContentLoaded', function () {
 
     // ==========================================================================
+    // TOASTS Toastify (mensajes flash tras crear/editar/desactivar/eliminar)
+    // ==========================================================================
+    const flashToast = document.getElementById('flashToast');
+    if (flashToast && typeof Toastify !== 'undefined') {
+        const message = flashToast.getAttribute('data-message') || '';
+        const isError = flashToast.getAttribute('data-type') === 'error';
+        Toastify({
+            text: message,
+            duration: 3500,
+            gravity: 'top',
+            position: 'right',
+            close: true,
+            stopOnFocus: true,
+            style: {
+                background: isError ? '#dc2626' : '#16a34a',
+                borderRadius: '12px',
+                boxShadow: isError
+                    ? '0 10px 30px -6px rgba(220, 38, 38, 0.4)'
+                    : '0 10px 30px -6px rgba(22, 163, 74, 0.4)',
+                fontFamily: 'inherit',
+                fontSize: '14px',
+                fontWeight: '600'
+            },
+            offset: { x: 0, y: 20 }
+        }).showToast();
+    }
+
+    // ==========================================================================
     // SIDEBAR COLAPSABLE (solo iconos al colapsar, estado persistido)
     // ==========================================================================
     const sidebarToggle = document.getElementById('sidebarToggle');

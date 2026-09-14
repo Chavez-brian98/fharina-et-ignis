@@ -58,7 +58,8 @@ class ProductController
         $production_cost = $_POST['production_cost'] ?? '';
         $stock = (int) ($_POST['stock'] ?? 0);
         $min_stock = (int) ($_POST['min_stock'] ?? 0);
-        $image_url = $_POST['image_url'] ?? '';
+        $image_url = trim($_POST['image_url'] ?? '');
+        $barcode = trim($_POST['barcode'] ?? '');
 
         if (empty($name) || empty($sale_price) || $category_id <= 0) {
             flash('error', 'Debe completar todos los campos obligatorios.');
@@ -66,7 +67,22 @@ class ProductController
             exit;
         }
 
-        if ($this->productModel->create($category_id, $name, $description, $sale_price, $production_cost, $stock, $min_stock, $image_url)) {
+        if ($barcode !== '' && $this->productModel->findByBarcode($barcode)) {
+            flash('error', 'El código de barras "' . $barcode . '" ya está registrado en otro producto.');
+            header('Location: ' . url('products/create'));
+            exit;
+        }
+
+        $uploaded = upload_image('image_file');
+        if ($uploaded === false) {
+            header('Location: ' . url('products/create'));
+            exit;
+        }
+        if ($uploaded !== null) {
+            $image_url = $uploaded;
+        }
+
+        if ($this->productModel->create($category_id, $name, $description, $sale_price, $production_cost, $stock, $min_stock, $image_url, $barcode)) {
             flash('success', 'Producto creado correctamente.');
         } else {
             flash('error', 'No se pudo crear el producto.');
@@ -112,7 +128,8 @@ class ProductController
         $production_cost = $_POST['production_cost'] ?? '';
         $stock = (int) ($_POST['stock'] ?? 0);
         $min_stock = (int) ($_POST['min_stock'] ?? 0);
-        $image_url = $_POST['image_url'] ?? '';
+        $image_url = trim($_POST['image_url'] ?? '');
+        $barcode = trim($_POST['barcode'] ?? '');
         $status = $_POST['status'] ?? 'active';
 
         if (empty($name) || empty($sale_price) || $category_id <= 0) {
@@ -121,7 +138,22 @@ class ProductController
             exit;
         }
 
-        if ($this->productModel->update($id, $category_id, $name, $description, $sale_price, $production_cost, $stock, $min_stock, $image_url, $status)) {
+        if ($barcode !== '' && $this->productModel->findByBarcode($barcode, $id)) {
+            flash('error', 'El código de barras "' . $barcode . '" ya está registrado en otro producto.');
+            header('Location: ' . url('products/edit/' . $id));
+            exit;
+        }
+
+        $uploaded = upload_image('image_file');
+        if ($uploaded === false) {
+            header('Location: ' . url('products/edit/' . $id));
+            exit;
+        }
+        if ($uploaded !== null) {
+            $image_url = $uploaded;
+        }
+
+        if ($this->productModel->update($id, $category_id, $name, $description, $sale_price, $production_cost, $stock, $min_stock, $image_url, $barcode, $status)) {
             flash('success', 'Producto actualizado correctamente.');
         } else {
             flash('error', 'No se pudo actualizar el producto.');

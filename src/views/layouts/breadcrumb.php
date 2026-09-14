@@ -15,19 +15,12 @@
     <?php endforeach; ?>
 </nav>
 
-<!-- MENSAJES FLASH -->
-<?php $success = flash('success'); ?>
-<?php if ($success): ?>
-    <div class="mb-5 flex items-center gap-3 rounded-xl border border-green-200 bg-green-50 px-4 py-3">
-        <i class="fa-solid fa-circle-check text-green-600"></i>
-        <span class="text-sm text-green-800"><?= esc($success) ?></span>
-    </div>
-<?php endif; ?>
-
-<?php $error = flash('error'); ?>
-<?php if ($error): ?>
-    <div class="mb-5 flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
-        <i class="fa-solid fa-circle-exclamation text-red-600"></i>
-        <span class="text-sm text-red-800"><?= esc($error) ?></span>
-    </div>
+<!-- MENSAJES FLASH (toast con Toastify) -->
+<?php $flashSuccess = flash('success'); ?>
+<?php $flashError = flash('error'); ?>
+<?php $flashMessage = $flashSuccess ?? $flashError; ?>
+<?php if ($flashMessage): ?>
+    <div id="flashToast" class="hidden"
+         data-type="<?= $flashSuccess ? 'success' : 'error' ?>"
+         data-message="<?= esc($flashMessage) ?>"></div>
 <?php endif; ?>

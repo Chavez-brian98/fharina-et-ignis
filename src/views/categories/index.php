@@ -61,11 +61,19 @@
                     <td class="px-5 py-3.5 text-gray-500"><?= esc($item['description']) ?></td>
                     <td class="px-5 py-3.5 text-gray-600"><?= esc($item['display_order']) ?></td>
                     <td class="px-5 py-3.5">
-                        <?php if ($item['status'] === 'active'): ?>
-                            <span class="inline-flex rounded-full bg-green-50 px-2.5 py-1 text-xs font-semibold text-green-600">Activo</span>
-                        <?php else: ?>
-                            <span class="inline-flex rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-500">Inactivo</span>
-                        <?php endif; ?>
+                        <button type="button"
+                                class="btn-toggle group inline-flex items-center gap-2.5 rounded-full px-2 py-1 -mx-2 transition-colors hover:bg-gray-100"
+                                title="<?= $item['status'] === 'active' ? 'Desactivar categoría' : 'Activar categoría' ?>"
+                                data-url="<?= url('categories/toggle/' . $item['id']) ?>"
+                                data-name="<?= esc($item['name']) ?>"
+                                data-state="<?= esc($item['status']) ?>">
+                            <span class="<?= $item['status'] === 'active' ? 'text-green-600' : 'text-gray-400' ?> text-xs font-semibold transition-colors">
+                                <?= $item['status'] === 'active' ? 'Activo' : 'Inactivo' ?>
+                            </span>
+                            <span class="<?= $item['status'] === 'active' ? 'bg-green-500' : 'bg-gray-300' ?> relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors">
+                                <span class="<?= $item['status'] === 'active' ? 'translate-x-[18px]' : 'translate-x-[2px]' ?> inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform duration-200"></span>
+                            </span>
+                        </button>
                     </td>
                     <td class="px-5 py-3.5">
                         <div class="flex items-center justify-end gap-1.5">

@@ -14,7 +14,7 @@
     <div class="border-b border-gray-100 bg-gradient-to-r from-orange-50/80 to-white px-6 py-5">
         <h2 class="font-semibold text-gray-900"><i class="fa-solid fa-box text-orange-500 mr-2"></i>Información del producto</h2>
     </div>
-    <form action="<?= url('products/store') ?>" method="POST" class="px-6 py-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+    <form action="<?= url('products/store') ?>" method="POST" enctype="multipart/form-data" class="px-6 py-6 grid grid-cols-1 md:grid-cols-2 gap-4">
         <div class="md:col-span-2">
             <label for="name" class="form-label">Nombre <span class="text-red-500">*</span></label>
             <input type="text" id="name" name="name" class="form-input" value="<?= old('name') ?>" required>
@@ -61,8 +61,23 @@
         </div>
 
         <div>
-            <label for="image_url" class="form-label">URL de imagen</label>
-            <input type="url" id="image_url" name="image_url" class="form-input" value="<?= old('image_url') ?>" placeholder="https://...">
+            <label for="barcode" class="form-label">Código de barras</label>
+            <div class="relative">
+                <i class="fa-solid fa-barcode absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
+                <input type="text" id="barcode" name="barcode" maxlength="50" class="form-input pl-10 pr-12"
+                       value="<?= old('barcode') ?>" placeholder="Escanea o escribe el código">
+                <button type="button" class="btn-scan-barcode absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-lg flex items-center justify-center text-orange-500 hover:bg-orange-50 focus:outline-none transition-colors"
+                        title="Escanear con la cámara">
+                    <i class="fa-solid fa-camera-retro"></i>
+                </button>
+            </div>
+            <p class="text-xs text-gray-400 mt-1.5">Escanéalo con tu celular usando la cámara.</p>
+        </div>
+
+        <div>
+            <label for="image_file" class="form-label">Imagen del producto</label>
+            <input type="file" id="image_file" name="image_file" accept="image/*" class="form-input">
+            <p class="text-xs text-gray-400 mt-1.5">JPG, PNG, WEBP o GIF · máximo 2 MB · se sube al sistema y se muestra en el POS.</p>
         </div>
 
         <div class="md:col-span-2">
@@ -78,5 +93,7 @@
         </div>
     </form>
 </div>
+
+<?php require_once __DIR__ . '/../partials/barcode_scanner.php'; ?>
 
 <?php require_once __DIR__ . '/../layouts/footer.php'; ?>

@@ -24,3 +24,8 @@ logs/
 *.tmp
 tmp/
 .cache/
+
+# ==== Archivos subidos por el usuario ====
+# El directorio public/uploads/ existe en el repo solo con su .gitkeep
+public/uploads/*
+!public/uploads/.gitkeep

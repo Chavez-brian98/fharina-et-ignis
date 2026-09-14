@@ -20,7 +20,7 @@ DROP TABLE IF EXISTS
     productos, categorias,
     client_segment, client_segments, clients,
     sales_commissions, performance_reviews, attendances, shifts, empleados,
-    users, roles, notificaciones;
+    users, roles, notificaciones, settings;
 SET FOREIGN_KEY_CHECKS = 1;
 
 -- ----------------------------------------------------------------------------
@@ -227,11 +227,13 @@ CREATE TABLE productos (
     stock INT NOT NULL DEFAULT 0,
     min_stock INT NOT NULL DEFAULT 0,
     image_url VARCHAR(255),
+    barcode VARCHAR(50),
     status ENUM('active','inactive') NOT NULL DEFAULT 'active',
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_products_category FOREIGN KEY (category_id) REFERENCES categorias(id),
     CONSTRAINT fk_products_recipe FOREIGN KEY (recipe_id) REFERENCES recetas(id),
-    INDEX idx_products_category (category_id)
+    INDEX idx_products_category (category_id),
+    UNIQUE KEY idx_products_barcode (barcode)
 ) ENGINE=InnoDB;
 
 -- ----------------------------------------------------------------------------
@@ -541,6 +543,16 @@ CREATE TABLE notificaciones (
 ) ENGINE=InnoDB;
 
 -- ----------------------------------------------------------------------------
+-- 13. CONFIGURACIÓN DEL SISTEMA (clave/valor)
+-- ----------------------------------------------------------------------------
+CREATE TABLE settings (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    setting_key VARCHAR(60) NOT NULL UNIQUE,
+    setting_value TEXT,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+
+-- ----------------------------------------------------------------------------
 -- SEED DATA (datos de ejemplo)
 -- ----------------------------------------------------------------------------
 INSERT INTO roles (name, description) VALUES
@@ -589,3 +601,155 @@ INSERT INTO clients (name, last_name, phone, email, address) VALUES
 ('Luis', 'Pérez', '5555-0002', 'luis.perez@mail.com', 'Zona 10, Ciudad');
 
 INSERT INTO client_segment (client_id, segment_id) VALUES (1, 1), (2, 2);
+
+-- ----------------------------------------------------------------------------
+-- DASHBOARD SEED (empleados, users, promociones, caja, ventas, pedidos)
+-- ----------------------------------------------------------------------------
+INSERT INTO empleados (id, name, last_name, id_document, phone, address, birth_date, hire_date, position, base_salary) VALUES
+(1, 'Carlos', 'Ramírez', 'PAN-0001', '5555-0101', 'Zona 5, Ciudad', '1990-03-15', '2023-05-01', 'Panadero', 1200.00),
+(2, 'María', 'González', 'CAJ-0001', '5555-0102', 'Zona 3, Ciudad', '1995-07-22', '2023-06-15', 'Cajero', 1000.00);
+
+INSERT INTO users (employee_id, role_id, username, email, password_hash) VALUES
+(NULL, 1, 'admin', 'admin@bakery.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi'),
+(2, 2, 'mcajero', 'maria.gonzalez@bakery.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi'),
+(1, 3, 'cramirez', 'carlos.ramirez@bakery.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi');
+
+INSERT INTO promociones (id, name, promotion_type, discount_percentage, start_date, end_date, status) VALUES
+(1, '2x1 Pan de Queso', 'dos_por_uno', 50.00, DATE_SUB(CURDATE(), INTERVAL 7 DAY), DATE_ADD(CURDATE(), INTERVAL 7 DAY), 'active');
+
+-- Caja de los últimos 14 días (la de hoy queda abierta)
+INSERT INTO caja (opening_user_id, closing_user_id, cash_date, opening_time, initial_amount, closing_time, system_final_amount, physical_final_amount, difference, state) VALUES
+(2, 2, DATE_SUB(CURDATE(), INTERVAL 13 DAY), '08:00:00', 200.00, '21:00:00', 258.00, 258.00, 0.00, 'cerrada'),
+(2, 2, DATE_SUB(CURDATE(), INTERVAL 12 DAY), '08:00:00', 250.00, '21:00:00', 332.50, 332.50, 0.00, 'cerrada'),
+(2, 2, DATE_SUB(CURDATE(), INTERVAL 11 DAY), '08:00:00', 220.00, '21:00:00', 300.50, 300.50, 0.00, 'cerrada'),
+(2, 2, DATE_SUB(CURDATE(), INTERVAL 10 DAY), '08:00:00', 280.00, '21:00:00', 377.50, 377.50, 0.00, 'cerrada'),
+(2, 2, DATE_SUB(CURDATE(), INTERVAL 9 DAY), '08:00:00', 240.00, '21:00:00', 342.00, 342.00, 0.00, 'cerrada'),
+(2, 2, DATE_SUB(CURDATE(), INTERVAL 8 DAY), '08:00:00', 260.00, '21:00:00', 380.00, 380.00, 0.00, 'cerrada'),
+(2, 2, DATE_SUB(CURDATE(), INTERVAL 7 DAY), '08:00:00', 230.00, '21:00:00', 362.50, 362.50, 0.00, 'cerrada'),
+(2, 2, DATE_SUB(CURDATE(), INTERVAL 6 DAY), '08:00:00', 300.00, '21:00:00', 445.50, 445.50, 0.00, 'cerrada'),
+(2, 2, DATE_SUB(CURDATE(), INTERVAL 5 DAY), '08:00:00', 270.00, '21:00:00', 431.50, 431.50, 0.00, 'cerrada'),
+(2, 2, DATE_SUB(CURDATE(), INTERVAL 4 DAY), '08:00:00', 290.00, '21:00:00', 477.00, 477.00, 0.00, 'cerrada'),
+(2, 2, DATE_SUB(CURDATE(), INTERVAL 3 DAY), '08:00:00', 310.00, '21:00:00', 506.00, 506.00, 0.00, 'cerrada'),
+(2, 2, DATE_SUB(CURDATE(), INTERVAL 2 DAY), '08:00:00', 320.00, '21:00:00', 564.50, 564.50, 0.00, 'cerrada'),
+(2, 2, DATE_SUB(CURDATE(), INTERVAL 1 DAY), '08:00:00', 330.00, '21:00:00', 565.00, 565.00, 0.00, 'cerrada'),
+(2, NULL, CURDATE(), '08:00:00', 340.00, NULL, 310.50, NULL, NULL, 'abierta');
+
+-- Ventas (3 por día, últimos 14 días). caja id 1..13 = días previos, caja id 14 = hoy.
+INSERT INTO ventas (id, cash_register_id, client_id, employee_id, promotion_id, sale_date, subtotal, total_discount, tax, total, payment_method, state) VALUES
+(1, 1, 1, 2, NULL, TIMESTAMP(DATE_SUB(CURDATE(), INTERVAL 13 DAY), '08:30:00'), 17.50, 0, 0, 17.50, 'efectivo', 'completada'),
+(2, 1, 2, 2, NULL, TIMESTAMP(DATE_SUB(CURDATE(), INTERVAL 13 DAY), '13:15:00'), 18.00, 0, 0, 18.00, 'tarjeta', 'completada'),
+(3, 1, NULL, 2, NULL, TIMESTAMP(DATE_SUB(CURDATE(), INTERVAL 13 DAY), '18:45:00'), 22.50, 0, 0, 22.50, 'efectivo', 'completada'),
+(4, 2, NULL, 2, NULL, TIMESTAMP(DATE_SUB(CURDATE(), INTERVAL 12 DAY), '08:40:00'), 27.50, 0, 0, 27.50, 'efectivo', 'completada'),
+(5, 2, 1, 2, NULL, TIMESTAMP(DATE_SUB(CURDATE(), INTERVAL 12 DAY), '13:30:00'), 28.00, 0, 0, 28.00, 'tarjeta', 'completada'),
+(6, 2, 2, 2, NULL, TIMESTAMP(DATE_SUB(CURDATE(), INTERVAL 12 DAY), '18:20:00'), 27.00, 0, 0, 27.00, 'efectivo', 'completada'),
+(7, 3, 2, 2, NULL, TIMESTAMP(DATE_SUB(CURDATE(), INTERVAL 11 DAY), '08:25:00'), 24.00, 0, 0, 24.00, 'efectivo', 'completada'),
+(8, 3, NULL, 2, NULL, TIMESTAMP(DATE_SUB(CURDATE(), INTERVAL 11 DAY), '13:45:00'), 24.00, 0, 0, 24.00, 'transferencia', 'completada'),
+(9, 3, 1, 2, NULL, TIMESTAMP(DATE_SUB(CURDATE(), INTERVAL 11 DAY), '18:50:00'), 32.50, 0, 0, 32.50, 'efectivo', 'completada'),
+(10, 4, 1, 2, NULL, TIMESTAMP(DATE_SUB(CURDATE(), INTERVAL 10 DAY), '08:35:00'), 30.00, 0, 0, 30.00, 'efectivo', 'completada'),
+(11, 4, 2, 2, NULL, TIMESTAMP(DATE_SUB(CURDATE(), INTERVAL 10 DAY), '13:10:00'), 30.00, 0, 0, 30.00, 'tarjeta', 'completada'),
+(12, 4, NULL, 2, NULL, TIMESTAMP(DATE_SUB(CURDATE(), INTERVAL 10 DAY), '18:40:00'), 37.50, 0, 0, 37.50, 'efectivo', 'completada'),
+(13, 5, NULL, 2, NULL, TIMESTAMP(DATE_SUB(CURDATE(), INTERVAL 9 DAY), '08:20:00'), 34.00, 0, 0, 34.00, 'efectivo', 'completada'),
+(14, 5, 1, 2, NULL, TIMESTAMP(DATE_SUB(CURDATE(), INTERVAL 9 DAY), '13:25:00'), 33.00, 0, 0, 33.00, 'tarjeta', 'completada'),
+(15, 5, 2, 2, NULL, TIMESTAMP(DATE_SUB(CURDATE(), INTERVAL 9 DAY), '18:30:00'), 35.00, 0, 0, 35.00, 'efectivo', 'completada'),
+(16, 6, 2, 2, NULL, TIMESTAMP(DATE_SUB(CURDATE(), INTERVAL 8 DAY), '08:50:00'), 42.50, 0, 0, 42.50, 'efectivo', 'completada'),
+(17, 6, NULL, 2, NULL, TIMESTAMP(DATE_SUB(CURDATE(), INTERVAL 8 DAY), '13:35:00'), 40.00, 0, 0, 40.00, 'tarjeta', 'completada'),
+(18, 6, 1, 2, NULL, TIMESTAMP(DATE_SUB(CURDATE(), INTERVAL 8 DAY), '18:10:00'), 37.50, 0, 0, 37.50, 'efectivo', 'completada'),
+(19, 7, 1, 2, NULL, TIMESTAMP(DATE_SUB(CURDATE(), INTERVAL 7 DAY), '08:15:00'), 39.00, 0, 0, 39.00, 'efectivo', 'completada'),
+(20, 7, 2, 2, NULL, TIMESTAMP(DATE_SUB(CURDATE(), INTERVAL 7 DAY), '13:40:00'), 47.50, 0, 0, 47.50, 'tarjeta', 'completada'),
+(21, 7, NULL, 2, NULL, TIMESTAMP(DATE_SUB(CURDATE(), INTERVAL 7 DAY), '18:55:00'), 46.00, 0, 0, 46.00, 'efectivo', 'completada'),
+(22, 8, NULL, 2, NULL, TIMESTAMP(DATE_SUB(CURDATE(), INTERVAL 6 DAY), '08:30:00'), 48.00, 0, 0, 48.00, 'efectivo', 'completada'),
+(23, 8, 1, 2, NULL, TIMESTAMP(DATE_SUB(CURDATE(), INTERVAL 6 DAY), '13:20:00'), 45.00, 0, 0, 45.00, 'tarjeta', 'completada'),
+(24, 8, 2, 2, NULL, TIMESTAMP(DATE_SUB(CURDATE(), INTERVAL 6 DAY), '18:35:00'), 52.50, 0, 0, 52.50, 'efectivo', 'completada'),
+(25, 9, 2, 2, NULL, TIMESTAMP(DATE_SUB(CURDATE(), INTERVAL 5 DAY), '08:45:00'), 48.00, 0, 0, 48.00, 'efectivo', 'completada'),
+(26, 9, NULL, 2, NULL, TIMESTAMP(DATE_SUB(CURDATE(), INTERVAL 5 DAY), '13:05:00'), 56.00, 0, 0, 56.00, 'tarjeta', 'completada'),
+(27, 9, 1, 2, NULL, TIMESTAMP(DATE_SUB(CURDATE(), INTERVAL 5 DAY), '18:25:00'), 57.50, 0, 0, 57.50, 'efectivo', 'completada'),
+(28, 10, 1, 2, NULL, TIMESTAMP(DATE_SUB(CURDATE(), INTERVAL 4 DAY), '08:10:00'), 60.00, 0, 0, 60.00, 'efectivo', 'completada'),
+(29, 10, 2, 2, NULL, TIMESTAMP(DATE_SUB(CURDATE(), INTERVAL 4 DAY), '13:50:00'), 70.00, 0, 0, 70.00, 'tarjeta', 'completada'),
+(30, 10, NULL, 2, NULL, TIMESTAMP(DATE_SUB(CURDATE(), INTERVAL 4 DAY), '18:15:00'), 57.00, 0, 0, 57.00, 'efectivo', 'completada'),
+(31, 11, NULL, 2, NULL, TIMESTAMP(DATE_SUB(CURDATE(), INTERVAL 3 DAY), '08:55:00'), 66.00, 0, 0, 66.00, 'efectivo', 'completada'),
+(32, 11, 1, 2, NULL, TIMESTAMP(DATE_SUB(CURDATE(), INTERVAL 3 DAY), '13:45:00'), 60.00, 0, 0, 60.00, 'tarjeta', 'completada'),
+(33, 11, 2, 2, NULL, TIMESTAMP(DATE_SUB(CURDATE(), INTERVAL 3 DAY), '18:40:00'), 70.00, 0, 0, 70.00, 'efectivo', 'completada'),
+(34, 12, 2, 2, NULL, TIMESTAMP(DATE_SUB(CURDATE(), INTERVAL 2 DAY), '08:20:00'), 72.00, 0, 0, 72.00, 'efectivo', 'completada'),
+(35, 12, NULL, 2, NULL, TIMESTAMP(DATE_SUB(CURDATE(), INTERVAL 2 DAY), '13:15:00'), 67.50, 0, 0, 67.50, 'tarjeta', 'completada'),
+(36, 12, 1, 2, NULL, TIMESTAMP(DATE_SUB(CURDATE(), INTERVAL 2 DAY), '18:45:00'), 105.00, 0, 0, 105.00, 'transferencia', 'completada'),
+(37, 13, 1, 2, NULL, TIMESTAMP(DATE_SUB(CURDATE(), INTERVAL 1 DAY), '08:30:00'), 80.00, 0, 0, 80.00, 'efectivo', 'completada'),
+(38, 13, 2, 2, NULL, TIMESTAMP(DATE_SUB(CURDATE(), INTERVAL 1 DAY), '13:20:00'), 80.00, 0, 0, 80.00, 'tarjeta', 'completada'),
+(39, 13, NULL, 2, NULL, TIMESTAMP(DATE_SUB(CURDATE(), INTERVAL 1 DAY), '18:50:00'), 75.00, 0, 0, 75.00, 'efectivo', 'completada'),
+(40, 14, 1, 2, NULL, TIMESTAMP(CURDATE(), '08:30:00'), 88.00, 0, 0, 88.00, 'efectivo', 'completada'),
+(41, 14, 2, 2, NULL, TIMESTAMP(CURDATE(), '13:15:00'), 82.50, 0, 0, 82.50, 'tarjeta', 'completada'),
+(42, 14, NULL, 2, NULL, TIMESTAMP(CURDATE(), '18:45:00'), 140.00, 0, 0, 140.00, 'efectivo', 'completada');
+
+INSERT INTO sale_details (sale_id, product_id, quantity, unit_price, discount, subtotal) VALUES
+(1, 3, 7, 2.50, 0, 17.50),
+(2, 2, 9, 2.00, 0, 18.00),
+(3, 1, 15, 1.50, 0, 22.50),
+(4, 3, 11, 2.50, 0, 27.50),
+(5, 2, 14, 2.00, 0, 28.00),
+(6, 1, 18, 1.50, 0, 27.00),
+(7, 2, 12, 2.00, 0, 24.00),
+(8, 1, 16, 1.50, 0, 24.00),
+(9, 3, 13, 2.50, 0, 32.50),
+(10, 2, 15, 2.00, 0, 30.00),
+(11, 1, 20, 1.50, 0, 30.00),
+(12, 3, 15, 2.50, 0, 37.50),
+(13, 2, 17, 2.00, 0, 34.00),
+(14, 1, 22, 1.50, 0, 33.00),
+(15, 4, 1, 35.00, 0, 35.00),
+(16, 3, 17, 2.50, 0, 42.50),
+(17, 2, 20, 2.00, 0, 40.00),
+(18, 1, 25, 1.50, 0, 37.50),
+(19, 1, 26, 1.50, 0, 39.00),
+(20, 3, 19, 2.50, 0, 47.50),
+(21, 2, 23, 2.00, 0, 46.00),
+(22, 2, 24, 2.00, 0, 48.00),
+(23, 1, 30, 1.50, 0, 45.00),
+(24, 3, 21, 2.50, 0, 52.50),
+(25, 1, 32, 1.50, 0, 48.00),
+(26, 2, 28, 2.00, 0, 56.00),
+(27, 3, 23, 2.50, 0, 57.50),
+(28, 2, 30, 2.00, 0, 60.00),
+(29, 4, 2, 35.00, 0, 70.00),
+(30, 1, 38, 1.50, 0, 57.00),
+(31, 2, 33, 2.00, 0, 66.00),
+(32, 1, 40, 1.50, 0, 60.00),
+(33, 3, 28, 2.50, 0, 70.00),
+(34, 2, 36, 2.00, 0, 72.00),
+(35, 1, 45, 1.50, 0, 67.50),
+(36, 4, 3, 35.00, 0, 105.00),
+(37, 2, 40, 2.00, 0, 80.00),
+(38, 3, 32, 2.50, 0, 80.00),
+(39, 1, 50, 1.50, 0, 75.00),
+(40, 2, 44, 2.00, 0, 88.00),
+(41, 1, 55, 1.50, 0, 82.50),
+(42, 4, 4, 35.00, 0, 140.00);
+
+INSERT INTO pedidos (id, client_id, recorded_by_user_id, order_date, delivery_date, state, rejection_reason, total, paid_amount, remaining_balance, notes) VALUES
+(1, 1, 1, DATE_SUB(CURDATE(), INTERVAL 3 DAY), DATE_ADD(CURDATE(), INTERVAL 2 DAY), 'pendiente', NULL, 350.00, 100.00, 250.00, 'Pastel de bodas para 50 personas'),
+(2, 2, 1, DATE_SUB(CURDATE(), INTERVAL 4 DAY), DATE_ADD(CURDATE(), INTERVAL 1 DAY), 'aprobado', NULL, 120.00, 120.00, 0.00, 'Pedido para cumpleaños'),
+(3, 1, 1, DATE_SUB(CURDATE(), INTERVAL 2 DAY), DATE_ADD(CURDATE(), INTERVAL 5 DAY), 'en_produccion', NULL, 210.00, 100.00, 110.00, 'Torta especial de chocolate'),
+(4, 2, 1, DATE_SUB(CURDATE(), INTERVAL 1 DAY), CURDATE(), 'listo', NULL, 45.00, 45.00, 0.00, 'Listo para recoger'),
+(5, 1, 1, DATE_SUB(CURDATE(), INTERVAL 8 DAY), DATE_SUB(CURDATE(), INTERVAL 6 DAY), 'entregado', NULL, 80.00, 80.00, 0.00, 'Entregado a domicilio'),
+(6, 2, 1, DATE_SUB(CURDATE(), INTERVAL 5 DAY), DATE_SUB(CURDATE(), INTERVAL 3 DAY), 'rechazado', 'Cliente canceló el pedido', 100.00, 0.00, 0.00, 'Cancelado por el cliente');
+
+INSERT INTO order_details (order_id, product_id, personalized_description, quantity, unit_price, subtotal) VALUES
+(1, 4, 'Pastel de bodas', 1, 350.00, 350.00),
+(2, 3, 'Panes surtidos', 48, 2.50, 120.00),
+(3, 4, 'Torta de chocolate grande', 1, 210.00, 210.00),
+(4, 3, 'Panes surtidos', 18, 2.50, 45.00),
+(5, 3, 'Panes de queso', 32, 2.50, 80.00),
+(6, 4, 'Pastel de chocolate', 1, 100.00, 100.00);
+
+INSERT INTO notificaciones (destination_user_id, notification_type, title, message, reference_type, reference_id) VALUES
+(1, 'stock_bajo', 'Stock bajo', 'El producto "Concha" está por debajo del stock mínimo.', 'producto', 2),
+(1, 'pedido_listo', 'Pedido listo', 'El pedido #4 está listo para recoger.', 'pedido', 4);
+
+INSERT INTO settings (setting_key, setting_value) VALUES
+('system_name', 'Bakery POS'),
+('business_name', 'Panadería El Horno Feliz'),
+('address', 'Av. Central #123, Centro'),
+('phone', '5555-1234'),
+('currency', '$'),
+('tax_rate', '0'),
+('ticket_footer', '¡Gracias por su compra!'),
+('system_logo', ''),
+('login_photo', 'https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=1200&q=80');

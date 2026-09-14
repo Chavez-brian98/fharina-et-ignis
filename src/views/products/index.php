@@ -13,7 +13,7 @@
         <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
         <input type="text" id="searchInput"
                class="w-full rounded-xl border border-gray-200 bg-white pl-10 pr-4 py-2.5 text-sm shadow-sm shadow-gray-200/60 outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100 transition"
-               placeholder="Buscar por nombre, descripción o categoría...">
+               placeholder="Buscar por nombre, código, categoría o descripción...">
     </div>
     <div>
         <select id="filterCategory" class="search-filter w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm shadow-sm shadow-gray-200/60 outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100">
@@ -43,6 +43,7 @@
             <thead>
                 <tr class="border-b border-gray-100 text-left text-xs uppercase tracking-wider text-gray-400">
                     <th class="px-5 py-3 font-semibold">Producto</th>
+                    <th class="px-5 py-3 font-semibold">Código</th>
                     <th class="px-5 py-3 font-semibold">Categoría</th>
                     <th class="px-5 py-3 font-semibold">Precio venta</th>
                     <th class="px-5 py-3 font-semibold">Costo</th>
@@ -59,6 +60,7 @@
                     $detail = json_encode([
                         'ID' => $item['id'],
                         'Nombre' => $item['name'],
+                        'Código de barras' => $item['barcode'] ?: '—',
                         'Categoría' => $item['category_name'],
                         'Descripción' => $item['description'] ?: '—',
                         'Precio de venta' => '$' . number_format($item['sale_price'], 2),
@@ -73,7 +75,7 @@
                     data-category="<?= esc($item['category_id']) ?>"
                     data-status="<?= esc($item['status']) ?>"
                     data-lowstock="<?= $lowStock ? 1 : 0 ?>"
-                    data-search="<?= esc(strtolower($item['name'] . ' ' . ($item['description'] ?? '') . ' ' . $item['category_name'])) ?>">
+                    data-search="<?= esc(strtolower($item['name'] . ' ' . ($item['description'] ?? '') . ' ' . $item['category_name'] . ' ' . ($item['barcode'] ?? ''))) ?>">
                     <td class="px-5 py-3.5">
                         <div class="flex items-center gap-3">
                             <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-orange-100 to-orange-50 text-orange-500 flex items-center justify-center shrink-0 ring-1 ring-orange-100 shadow-sm">
@@ -81,6 +83,13 @@
                             </div>
                             <span class="font-semibold text-gray-900"><?= esc($item['name']) ?></span>
                         </div>
+                    </td>
+                    <td class="px-5 py-3.5">
+                        <?php if (!empty($item['barcode'])): ?>
+                            <span class="font-mono text-xs font-semibold text-gray-700 bg-gray-100 rounded-md px-2 py-1"><?= esc($item['barcode']) ?></span>
+                        <?php else: ?>
+                            <span class="text-gray-300">—</span>
+                        <?php endif; ?>
                     </td>
                     <td class="px-5 py-3.5 text-gray-500"><?= esc($item['category_name']) ?></td>
                     <td class="px-5 py-3.5 font-semibold text-gray-900">$<?= number_format($item['sale_price'], 2) ?></td>
