@@ -35,6 +35,20 @@
 
         <nav class="flex-1 overflow-y-auto px-3 py-4 space-y-5">
 
+            <!-- PUNTO DE VENTA -->
+            <div>
+                <p class="px-2 mb-1 text-[11px] font-bold tracking-widest text-gray-400 uppercase sidebar-section-title">Punto de Venta</p>
+                <a href="#cash-register" title="Caja" class="flex items-center gap-3 px-2 py-2 rounded-lg text-sm font-medium sidebar-link sidebar-anchor">
+                    <i class="fa-solid fa-cash-register w-4 text-center shrink-0"></i><span class="sidebar-text">Caja</span>
+                </a>
+                <a href="<?= url('pos') ?>" title="Ventas" class="flex items-center gap-3 px-2 py-2 rounded-lg text-sm font-medium sidebar-link <?= ($currentModule ?? '') === 'pos' ? 'nav-active' : '' ?>">
+                    <i class="fa-solid fa-cart-shopping w-4 text-center shrink-0"></i><span class="sidebar-text">Ventas</span>
+                </a>
+                <a href="#clients" title="Clientes" class="flex items-center gap-3 px-2 py-2 rounded-lg text-sm font-medium sidebar-link sidebar-anchor">
+                    <i class="fa-solid fa-users-line w-4 text-center shrink-0"></i><span class="sidebar-text">Clientes</span>
+                </a>
+            </div>
+
             <!-- SISTEMAS -->
             <div>
                 <p class="px-2 mb-1 text-[11px] font-bold tracking-widest text-gray-400 uppercase sidebar-section-title">Sistemas</p>
@@ -43,15 +57,6 @@
                 </a>
                 <a href="#employees" title="Empleados" class="flex items-center gap-3 px-2 py-2 rounded-lg text-sm font-medium sidebar-link sidebar-anchor">
                     <i class="fa-solid fa-user-tie w-4 text-center shrink-0"></i><span class="sidebar-text">Empleados</span>
-                </a>
-                <a href="#users" title="Usuarios" class="flex items-center gap-3 px-2 py-2 rounded-lg text-sm font-medium sidebar-link sidebar-anchor">
-                    <i class="fa-solid fa-users w-4 text-center shrink-0"></i><span class="sidebar-text">Usuarios</span>
-                </a>
-                <a href="#notifications" title="Notificaciones" class="flex items-center gap-3 px-2 py-2 rounded-lg text-sm font-medium sidebar-link sidebar-anchor">
-                    <i class="fa-solid fa-bell w-4 text-center shrink-0"></i><span class="sidebar-text">Notificaciones</span>
-                </a>
-                <a href="<?= url('settings') ?>" title="Configuración" class="flex items-center gap-3 px-2 py-2 rounded-lg text-sm font-medium sidebar-link <?= ($currentModule ?? '') === 'settings' ? 'nav-active' : '' ?>">
-                    <i class="fa-solid fa-gear w-4 text-center shrink-0"></i><span class="sidebar-text">Configuración</span>
                 </a>
             </div>
 
@@ -86,20 +91,6 @@
                 </a>
             </div>
 
-            <!-- PUNTO DE VENTA -->
-            <div>
-                <p class="px-2 mb-1 text-[11px] font-bold tracking-widest text-gray-400 uppercase sidebar-section-title">Punto de Venta</p>
-                <a href="#cash-register" title="Caja" class="flex items-center gap-3 px-2 py-2 rounded-lg text-sm font-medium sidebar-link sidebar-anchor">
-                    <i class="fa-solid fa-cash-register w-4 text-center shrink-0"></i><span class="sidebar-text">Caja</span>
-                </a>
-                <a href="#sales" title="Ventas" class="flex items-center gap-3 px-2 py-2 rounded-lg text-sm font-medium sidebar-link sidebar-anchor">
-                    <i class="fa-solid fa-cart-shopping w-4 text-center shrink-0"></i><span class="sidebar-text">Ventas</span>
-                </a>
-                <a href="#clients" title="Clientes" class="flex items-center gap-3 px-2 py-2 rounded-lg text-sm font-medium sidebar-link sidebar-anchor">
-                    <i class="fa-solid fa-users-line w-4 text-center shrink-0"></i><span class="sidebar-text">Clientes</span>
-                </a>
-            </div>
-
             <!-- REPORTES -->
             <div>
                 <p class="px-2 mb-1 text-[11px] font-bold tracking-widest text-gray-400 uppercase sidebar-section-title">Reportes</p>
@@ -110,6 +101,18 @@
                     <i class="fa-solid fa-chart-pie w-4 text-center shrink-0"></i><span class="sidebar-text">Estadísticas</span>
                 </a>
             </div>
+
+            <!-- CONFIGURACION -->
+            <div>
+                <p class="px-2 mb-1 text-[11px] font-bold tracking-widest text-gray-400 uppercase sidebar-section-title">Configuracion</p>
+                <a href="#notifications" title="Notificaciones" class="flex items-center gap-3 px-2 py-2 rounded-lg text-sm font-medium sidebar-link sidebar-anchor">
+                    <i class="fa-solid fa-bell w-4 text-center shrink-0"></i><span class="sidebar-text">Notificaciones</span>
+                </a>
+                <a href="<?= url('settings') ?>" title="Configuración" class="flex items-center gap-3 px-2 py-2 rounded-lg text-sm font-medium sidebar-link <?= ($currentModule ?? '') === 'settings' ? 'nav-active' : '' ?>">
+                    <i class="fa-solid fa-gear w-4 text-center shrink-0"></i><span class="sidebar-text">Configuración</span>
+                </a>
+            </div>
+
         </nav>
 
         <?php $currentUser = $_SESSION['user'] ?? null; ?>

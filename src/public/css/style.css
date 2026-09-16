@@ -123,6 +123,28 @@ body.sidebar-collapsed .brand-box:hover .brand-expand {
     color: #ea580c;
 }
 
+/* POS */
+.pos-chip {
+    background: #f3f4f6;
+    color: #6b7280;
+    border: 1px solid transparent;
+}
+.pos-chip:hover {
+    background: #fff7ed;
+    color: #ea580c;
+}
+.pos-chip.active {
+    background: #f97316;
+    color: #fff;
+    box-shadow: 0 4px 10px rgba(249, 115, 22, .25);
+}
+.pos-product-icon {
+    transition: transform .15s ease;
+}
+.pos-card:hover .pos-product-icon {
+    transform: scale(1.12);
+}
+
 /* Modal */
 .modal-overlay {
     position: fixed;

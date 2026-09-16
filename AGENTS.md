@@ -2,13 +2,13 @@
 
 ## Project Overview
 
-PHP MVC bakery POS ("tiendita") running in Docker. Hand-rolled MVC — no framework. Code/URLs are in **English** (`products`, `categories`); DB table names are mixed Spanish per `doc/database.md`. The schema covers the full bakery design (roles, users, employees, clients, recipes, inventory, sales, orders), but only Products/Categories (+ Dashboard, Auth, Settings) are built so far.
+PHP MVC bakery POS ("tiendita") running in Docker. Hand-rolled MVC — no framework. Code/URLs are in **English** (`products`, `categories`); DB table names are mixed Spanish per `doc/database.md`. The schema covers the full bakery design (roles, users, employees, clients, recipes, inventory, sales, orders), but only Products/Categories, Dashboard, Auth, Settings and **POS** (`/pos`, tickets PDF con mPDF) are built so far.
 
 > **README.md is stale** — it describes an aspirational React/Laravel architecture. The real app is the plain-PHP MVC below; trust the code, not the README.
 
 ## Stack
 
-- PHP 8.2 on **php-fpm** (`php:8.2-fpm`), MySQL 8.0, Composer dep `vlucas/phpdotenv`. Compose runs 3 services: `app` (php-fpm, builds image `fharina-et-ignis:1.0`), `web` (**nginx:alpine**, `8080:80`, proxies PHP to `app:9000`), `db` (mysql:8.0, `3306:3306`).
+- PHP 8.2 on **php-fpm** (`php:8.2-fpm`), MySQL 8.0, Composer deps `vlucas/phpdotenv` + **`mpdf/mpdf`** (tickets PDF del POS). Compose runs 3 services: `app` (php-fpm, builds image `fharina-et-ignis:1.0`), `web` (**nginx:alpine**, `8080:80`, proxies PHP to `app:9000`), `db` (mysql:8.0, `3306:3306`). The Dockerfile compiles `gd` + `mbstring` (needed by mPDF) — if you touch it, keep those extensions.
 - Rewriting/Nginx lives in `docker/nginx/default.conf` (docroot `/var/www/html/public`). The legacy `src/public/.htaccess` still ships but is **inert under Nginx**.
 - **Tailwind Play CDN** + Font Awesome CDN in `sidebar.php`; SweetAlert2 (jsDelivr) in `footer.php`. Toastify-js (CDN) shows flash messages as toasts. **ApexCharts (jsDelivr) in `sidebar.php` head** for the Dashboard charts. npm deps (`sweetalert2`, `flatpickr`, `sortablejs`, `toastify-js`, `animate.css`) are tracked in `node_modules/` but **not used at runtime** — no build step.
 
@@ -58,14 +58,14 @@ src/
   public/.htaccess       Rewrite to index.php (skips real files) — inert, real rewrite is in nginx conf
   public/css|js/         style.css (custom classes), main.js (search/filter + modal + SweetAlert)
   config/Database.php    PDO via $_ENV (DB_SERVICE/DB_HOST/DB_NAME/DB_USER/DB_PASSWORD)
-  controllers/           ProductController, CategoryController, DashboardController, AuthController, SettingsController (+ require their model)
-  models/                Category, Product, Dashboard, User, Setting (plain PDO classes)
-  views/                 layouts/ (sidebar, breadcrumb, footer) + auth/ (login, standalone) + dashboard/ + products/, categories/ (index/create/edit) + settings/ (index) + partials/ (barcode_scanner.php: modal + JS Html5-QrCode)
-  public/uploads/        User-uploaded images (logo, login photo, product photos) served at /uploads/...; tracked only via .gitkeep
-  .env                   loaded by Dotenv::createImmutable(__DIR__.'/../') i.e. src/.env
-db/init.sql              Full schema + seed (incl. demo ventas/pedidos/caja for the Dashboard); the ONLY schema source. MySQL-adapted from doc/database.md. Seed users `admin@bakery.com`, `maria.gonzalez@bakery.com`, `carlos.ramirez@bakery.com` all log in with password **`password`**. Seeds `settings` rows (system/business name, contact, tax_rate, ticket_footer, logo/login photo).
-doc/                     database.md (canonical design, PostgreSQL-flavored), Documentacion.md
-docker/Dockerfile        php:8.2-fpm + pdo_mysql + composer + node (node unused at runtime)
+  controllers/        ProductController, CategoryController, DashboardController, AuthController, SettingsController, PosController (+ require their model)
+  models/             Category, Product, Dashboard, User, Setting, Sale (plain PDO classes)
+  views/              layouts/ (sidebar, breadcrumb, footer) + auth/ (login, standalone) + dashboard/ + products/, categories/ (index/create/edit) + settings/ (index) + pos/ (index: cards + carrito + pago mixto) + partials/ (barcode_scanner.php: modal + JS Html5-QrCode)
+  public/uploads/     User-uploaded images (logo, login photo, product photos) served at /uploads/...; tracked only via .gitkeep
+  .env                loaded by Dotenv::createImmutable(__DIR__.'/../') i.e. src/.env
+db/init.sql           Full schema + seed (incl. demo ventas/pedidos/caja for the Dashboard); the ONLY schema source. MySQL-adapted from doc/database.md. Seed users `admin@bakery.com`, `maria.gonzalez@bakery.com`, `carlos.ramirez@bakery.com` all log in with password **`password`**. Seeds `settings` rows (system/business name, contact, tax_rate, ticket_footer, logo/login photo) y promociones con `promotion_product` (descuentos que muestra el POS). Seed admin real: `admin@ignis.com`/`password` (ver inic.sql).
+doc/                 database.md (canonical design, PostgreSQL-flavored), Documentacion.md
+docker/Dockerfile    php:8.2-fpm + pdo_mysql + mbstring + gd (+ composer + node); gd/mbstring son requeridas por mPDF
 docker/nginx/default.conf Nginx docroot /var/www/html/public; proxies PHP to app:9000
 ```
 
@@ -81,6 +81,7 @@ docker/nginx/default.conf Nginx docroot /var/www/html/public; proxies PHP to app
 - No autoloader: every new controller/model must be `require_once`d in `src/public/index.php` (controllers also require their model). `vendor/`/`node_modules/` are host-mounted and committed; install locally in `src/` if missing.
 - `db/init.sql` starts with `SET NAMES utf8mb4` (keep it) or Spanish accents double-encode.
 - `src/.env.example` is stale (`DB_NAME=tiendita`); the real DB is `fharina_et_ignis` — copy from `src/.env`, not the example.
-- Sidebar has placeholder links (classes `sidebar-anchor`): `#employees`, `#users`, `#notifications`, `#inventory`, `#production`, `#suppliers`, `#orders`, `#promotions`, `#cash-register`, `#sales`, `#clients`, `#reports`, `#statistics` (all 13 modules from `doc/Documentacion.md` §5). Only Dashboard (`/dashboard`), Products, Categories and Settings (`/settings`, edita la tabla `settings` via `SettingsController`) are real. ApexCharts CDN is loaded globally in `sidebar.php` `<head>` — don't duplicate it.
+- Sidebar has placeholder links (classes `sidebar-anchor`): `#employees`, `#users`, `#notifications`, `#inventory`, `#production`, `#suppliers`, `#orders`, `#promotions`, `#cash-register`, `#clients`, `#reports`, `#statistics` (all 13 modules from `doc/Documentacion.md` §5). Only Dashboard (`/dashboard`), Products, Categories, Settings (`/settings`, edita la tabla `settings` via `SettingsController`) and **POS (`/pos`)** are real. ApexCharts CDN is loaded globally in `sidebar.php` `<head>` — don't duplicate it.
 - Image uploads go through the `upload_image()` global to `public/uploads/` (gitignored). Server-side: real-image check via `getimagesize`, whitelist JPG/PNG/WEBP/GIF, 2 MB cap. Set `name` to a key that's meaningful (`image_file`, `system_logo`, `login_photo`). On `false` the controller must redirect back (error flash already set). Keep the previous value with a hidden `name="image_url"` on edit forms (products) or file leave-empty (settings).
+- **POS**: `Sale::getCatalog()` returns active products + `category_name` + `discount_percent` (descuento vigente vía `promociones`/`promotion_product`) + `final_price`. `Sale::createSale()` valida stock/pago en transacción e inserta `ventas` + `sale_details` + `sale_payments` (pago mixto). `ventas.cash_register_id`/`employee_id` son NULLables (sin módulo de caja/empleados formal aún). El ticket se genera en `PosController::ticket` con mPDF (72 mm, `dejavusans`); el número es el id padded a 6 dígitos. El JS del POS es inline en `views/pos/index.php` (cards `.pos-card` con `data-search`/`data-category`/`data-stock`/`data-discount`).
 - Views reference assets by absolute `/css/...`, `/js/...` (webroot = `public/`).

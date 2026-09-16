@@ -67,9 +67,14 @@
                         }
                     },
                     function (decodedText) {
-                        document.getElementById('barcode').value = decodedText;
-                        closeScanner();
-                    },
+                if (typeof window.onBarcodeDetected === 'function') {
+                    window.onBarcodeDetected(decodedText);
+                } else {
+                    const input = document.getElementById('barcode');
+                    if (input) input.value = decodedText;
+                }
+                closeScanner();
+            },
                     function () {}
                 ).catch(function () {
                     Swal.fire({

@@ -11,7 +11,7 @@ SET FOREIGN_KEY_CHECKS = 0;
 DROP TABLE IF EXISTS
     receipt_details, merchandise_receipts, purchase_order_details, purchase_orders,
     supplier_price_history, proveedores,
-    sale_details, ventas, cash_register_movements, caja,
+    sale_payments, sale_details, ventas, cash_register_movements, caja,
     cupones, promotion_product, promociones,
     email_notifications, order_tickets, order_status_history, order_payments,
     order_details, pedidos,
@@ -402,9 +402,9 @@ CREATE TABLE cash_register_movements (
 -- ----------------------------------------------------------------------------
 CREATE TABLE ventas (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    cash_register_id INT NOT NULL,
+    cash_register_id INT NULL,
     client_id INT NULL,
-    employee_id INT NOT NULL,
+    employee_id INT NULL,
     promotion_id INT NULL,
     sale_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     subtotal DECIMAL(10,2) NOT NULL,
@@ -431,6 +431,16 @@ CREATE TABLE sale_details (
     subtotal DECIMAL(10,2) NOT NULL,
     CONSTRAINT fk_sd_sale FOREIGN KEY (sale_id) REFERENCES ventas(id),
     CONSTRAINT fk_sd_product FOREIGN KEY (product_id) REFERENCES productos(id)
+) ENGINE=InnoDB;
+
+-- Pagos por venta (permite pagos mixtos: mitad efectivo, mitad tarjeta, etc.)
+CREATE TABLE sale_payments (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    sale_id INT NOT NULL,
+    payment_method VARCHAR(40) NOT NULL,
+    amount DECIMAL(10,2) NOT NULL,
+    INDEX idx_fp_sale (sale_id),
+    CONSTRAINT fk_fp_sale FOREIGN KEY (sale_id) REFERENCES ventas(id)
 ) ENGINE=InnoDB;
 
 -- comisiones depende de ventas
@@ -586,11 +596,11 @@ INSERT INTO categorias (name, description, display_order) VALUES
 ('Panes salados', 'Panes con queso y embutidos', 2),
 ('Repostería', 'Pasteles y postres', 3);
 
-INSERT INTO productos (category_id, recipe_id, name, description, sale_price, production_cost, stock, min_stock, image_url) VALUES
-(1, 2, 'Pan Dulce Clásico', 'Pan esponjoso con azúcar y canela', 1.50, 0.60, 150, 20, NULL),
-(1, 2, 'Concha', 'Pan dulce con cobertura crujiente', 2.00, 0.80, 10, 25, NULL),
-(2, 1, 'Pan de Queso', 'Pan salado relleno de queso', 2.50, 1.00, 80, 15, NULL),
-(3, NULL, 'Pastel de Chocolate', 'Pastel de chocolate con ganache', 35.00, 18.00, 3, 5, NULL);
+INSERT INTO productos (category_id, recipe_id, name, description, sale_price, production_cost, stock, min_stock, image_url, barcode) VALUES
+(1, 2, 'Pan Dulce Clásico', 'Pan esponjoso con azúcar y canela', 1.50, 0.60, 150, 20, NULL, '7701234567890'),
+(1, 2, 'Concha', 'Pan dulce con cobertura crujiente', 2.00, 0.80, 10, 25, NULL, NULL),
+(2, 1, 'Pan de Queso', 'Pan salado relleno de queso', 2.50, 1.00, 80, 15, NULL, NULL),
+(3, NULL, 'Pastel de Chocolate', 'Pastel de chocolate con ganache', 35.00, 18.00, 3, 5, NULL, NULL);
 
 INSERT INTO client_segments (name, description) VALUES
 ('Frecuentes', 'Clientes que compran al menos una vez por semana'),
@@ -615,7 +625,11 @@ INSERT INTO users (employee_id, role_id, username, email, password_hash) VALUES
 (1, 3, 'ramirez', 'carlos.ramirez@bakery.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi');
 
 INSERT INTO promociones (id, name, promotion_type, discount_percentage, start_date, end_date, status) VALUES
-(1, '2x1 Pan de Queso', 'dos_por_uno', 50.00, DATE_SUB(CURDATE(), INTERVAL 7 DAY), DATE_ADD(CURDATE(), INTERVAL 7 DAY), 'active');
+(1, '2x1 Pan de Queso', 'dos_por_uno', 50.00, DATE_SUB(CURDATE(), INTERVAL 7 DAY), DATE_ADD(CURDATE(), INTERVAL 7 DAY), 'active'),
+(2, '10% Pastel de Chocolate', 'campana_temporal', 10.00, DATE_SUB(CURDATE(), INTERVAL 7 DAY), DATE_ADD(CURDATE(), INTERVAL 7 DAY), 'active');
+
+-- Promociones aplicadas a productos (descuento que muestra el POS en las cards)
+INSERT INTO promotion_product (promotion_id, product_id) VALUES (1, 3), (2, 4);
 
 -- Caja de los últimos 14 días (la de hoy queda abierta)
 INSERT INTO caja (opening_user_id, closing_user_id, cash_date, opening_time, initial_amount, closing_time, system_final_amount, physical_final_amount, difference, state) VALUES
