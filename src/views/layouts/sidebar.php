@@ -16,23 +16,19 @@
 <div class="flex min-h-screen">
 
     <!-- ======================= SIDEBAR (colapsable) ======================= -->
-    <aside id="sidebar" class="sidebar w-64 bg-white border-r border-gray-200 flex flex-col shrink-0 sticky top-0 h-screen">
-        <div class="flex items-center justify-between gap-2 px-4 py-5 border-b border-gray-100">
-            <div class="flex items-center gap-2.5 brand-row">
-                <div class="w-9 h-9 rounded-xl bg-white ring-1 ring-gray-100 flex items-center justify-center overflow-hidden shrink-0">
+    <aside id="sidebar" class="sidebar bg-white border-r border-gray-200 flex flex-col">
+        <div class="relative flex items-center justify-center px-4 py-5 border-b border-gray-100">
+            <div class="brand-row flex flex-col items-center gap-2.5 max-w-full">
+                <div class="brand-box relative w-14 h-14 rounded-2xl flex items-center justify-center overflow-hidden shrink-0 <?= setting('system_logo') ? '' : 'bg-orange-500 text-white shadow-md shadow-orange-200' ?>">
                     <?php if (setting('system_logo')): ?>
-                        <img src="<?= esc(setting('system_logo')) ?>" alt="Logo" class="w-full h-full object-contain bg-orange-500/10">
+                        <img src="<?= esc(setting('system_logo')) ?>" alt="Logo" class="brand-icon w-full h-full object-contain">
                     <?php else: ?>
-                        <div class="w-9 h-9 rounded-xl bg-orange-500 flex items-center justify-center text-white shadow-md shadow-orange-200">
-                            <i class="fa-solid fa-bread-slice"></i>
-                        </div>
+                        <i class="fa-solid fa-bread-slice text-xl brand-icon"></i>
                     <?php endif; ?>
-                </div>
-                <div class="sidebar-text">
-                    <p class="font-bold text-gray-900 leading-tight truncate"><?= esc(setting('business_name', 'Panadería')) ?></p>
+                    <i class="fa-solid fa-bars-staggered brand-expand text-orange-500 text-lg" aria-hidden="true"></i>
                 </div>
             </div>
-            <button type="button" id="sidebarToggle" class="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:bg-orange-50 hover:text-orange-500 transition-colors shrink-0" title="Colapsar menú">
+            <button type="button" id="sidebarToggle" class="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:bg-orange-50 hover:text-orange-500 transition-colors" title="Colapsar menú">
                 <i class="fa-solid fa-bars-staggered"></i>
             </button>
         </div>
@@ -129,6 +125,16 @@
         </div>
     </aside>
 
+    <!-- Fondo oscuro para el drawer en móvil/tablet -->
+    <div id="sidebarBackdrop" class="sidebar-backdrop" aria-hidden="true"></div>
+
     <!-- ======================= CONTENIDO ======================= -->
-    <main class="flex-1 px-8 py-6 min-w-0 w-full">
+    <main class="flex-1 px-4 sm:px-6 lg:px-8 py-6 min-w-0 w-full">
+        <!-- Botón flotante (móvil/tablet): abre el sidebar -->
+        <button type="button" id="sidebarOpenBtn"
+                class="lg:hidden fixed top-3 right-3 z-50 w-10 h-10 rounded-xl bg-white border border-gray-200 shadow-lg shadow-gray-200/60 flex items-center justify-center text-orange-500 hover:bg-orange-50 transition-colors"
+                title="Abrir menú" aria-label="Abrir menú">
+            <i class="fa-solid fa-bars"></i>
+        </button>
+
         <?php if (file_exists(__DIR__ . '/breadcrumb.php')) require __DIR__ . '/breadcrumb.php'; ?>

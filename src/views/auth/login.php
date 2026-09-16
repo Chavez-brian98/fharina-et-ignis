@@ -39,9 +39,9 @@
             <div class="rounded-2xl bg-white p-8 shadow-lg shadow-gray-200/50 ring-1 ring-gray-100">
                 <div class="flex flex-col items-center text-center mb-7">
                     <?php if ($systemLogo): ?>
-                        <img src="<?= esc($systemLogo) ?>" alt="Logo" class="w-14 h-14 rounded-2xl object-contain bg-orange-50 p-2 ring-1 ring-orange-100 mb-3">
+                        <img src="<?= esc($systemLogo) ?>" alt="Logo" class="w-28 h-28 object-contain mb-3">
                     <?php else: ?>
-                        <div class="w-14 h-14 rounded-2xl bg-orange-500 flex items-center justify-center text-white text-xl shadow-lg shadow-orange-500/25 mb-3">
+                        <div class="w-16 h-16 rounded-2xl bg-orange-500 flex items-center justify-center text-white text-2xl shadow-lg shadow-orange-500/25 mb-3">
                             <i class="fa-solid fa-bread-slice"></i>
                         </div>
                     <?php endif; ?>

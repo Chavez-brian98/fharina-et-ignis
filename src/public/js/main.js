@@ -29,19 +29,84 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     // ==========================================================================
-    // SIDEBAR COLAPSABLE (solo iconos al colapsar, estado persistido)
+    // SIDEBAR RESPONSIVE
+    // Escritorio (>=1024px): colapsable inline (solo iconos), estado persistido.
+    // Móvil/tablet (<1024px): drawer deslizable con fondo oscuro (#sidebarBackdrop).
     // ==========================================================================
     const sidebarToggle = document.getElementById('sidebarToggle');
+    const sidebarOpenBtn = document.getElementById('sidebarOpenBtn');
+    const sidebarBackdrop = document.getElementById('sidebarBackdrop');
+
+    const isDesktop = function () {
+        return window.matchMedia('(min-width: 1024px)').matches;
+    };
+
+    const openDrawer = function () {
+        document.body.classList.add('sidebar-open');
+        document.body.style.overflow = 'hidden';
+    };
+    const closeDrawer = function () {
+        document.body.classList.remove('sidebar-open');
+        document.body.style.overflow = '';
+    };
+
+    // Al cargar: restaurar estado colapsado SOLO en escritorio.
+    if (isDesktop() && localStorage.getItem('sidebar-collapsed') === '1') {
+        document.body.classList.add('sidebar-collapsed');
+    }
+
+    // Botón interno del sidebar: en escritorio colapsa; en móvil cierra el drawer.
     if (sidebarToggle) {
-        const applyCollapsed = function () {
-            document.body.classList.toggle('sidebar-collapsed', localStorage.getItem('sidebar-collapsed') === '1');
-        };
-        applyCollapsed();
         sidebarToggle.addEventListener('click', function () {
-            const collapsed = document.body.classList.toggle('sidebar-collapsed');
-            localStorage.setItem('sidebar-collapsed', collapsed ? '1' : '0');
+            if (isDesktop()) {
+                const collapsed = document.body.classList.toggle('sidebar-collapsed');
+                localStorage.setItem('sidebar-collapsed', collapsed ? '1' : '0');
+            } else {
+                closeDrawer();
+            }
         });
     }
+
+    // Escritorio colapsado: al pasar el cursor sobre el logo aparece el botón de expandir
+    // (CSS); un clic sobre él expande y todo vuelve a la normalidad.
+    const brandRow = document.querySelector('.sidebar .brand-row');
+    if (brandRow) {
+        brandRow.addEventListener('click', function () {
+            if (!isDesktop() || !document.body.classList.contains('sidebar-collapsed')) return;
+            document.body.classList.remove('sidebar-collapsed');
+            localStorage.setItem('sidebar-collapsed', '0');
+        });
+    }
+
+    // Botón flotante (móvil/tablet): abre y cierra el drawer.
+    if (sidebarOpenBtn) {
+        sidebarOpenBtn.addEventListener('click', function () {
+            if (document.body.classList.contains('sidebar-open')) {
+                closeDrawer();
+            } else {
+                openDrawer();
+            }
+        });
+    }
+
+    // Clic en el fondo oscuro: cierra el drawer.
+    if (sidebarBackdrop) {
+        sidebarBackdrop.addEventListener('click', function () {
+            closeDrawer();
+        });
+    }
+
+    // Tecla Esc: cierra el drawer (en móvil).
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && document.body.classList.contains('sidebar-open')) {
+            closeDrawer();
+        }
+    });
+
+    // Al redimensionar a escritorio, asegurar que el drawer no quede abierto en móvil.
+    window.addEventListener('resize', function () {
+        if (isDesktop()) closeDrawer();
+    });
 
     // ==========================================================================
     // BÚSQUEDA EN TIEMPO REAL + FILTROS (aplica a cualquier CRUD)
