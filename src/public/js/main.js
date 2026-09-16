@@ -202,23 +202,16 @@ document.addEventListener('DOMContentLoaded', function () {
                     if (key === 'ID') continue;
                     const rawVal = data[key];
                     const val = (rawVal !== null && rawVal !== '' && rawVal !== undefined) ? rawVal : '—';
-                    const isLong = key === 'Nombre' || key === 'Descripción' || String(val).length > 30;
-                    if (isLong) {
-                        fields += '<div class="sm:col-span-2 rounded-xl bg-white px-4 py-3 ring-1 ring-gray-100">'
-                            + '<span class="block text-sm font-medium text-gray-500 mb-1">' + key + '</span>'
-                            + '<span class="block text-sm font-semibold text-gray-900 leading-snug">' + val + '</span>'
-                            + '</div>';
-                    } else {
-                        fields += '<div class="flex items-center justify-between gap-3 rounded-xl bg-white px-4 py-3.5 ring-1 ring-gray-100">'
-                            + '<span class="text-sm font-medium text-gray-500 shrink-0">' + key + '</span>'
-                            + '<span class="text-sm font-semibold text-gray-900 text-right">' + val + '</span>'
-                            + '</div>';
-                    }
+                    const isLong = key === 'Nombre' || key === 'Descripción' || key === 'Dirección' || String(val).length > 30;
+                    fields += '<div class="' + (isLong ? 'sm:col-span-2 ' : '') + 'rounded-xl bg-white px-4 py-3 ring-1 ring-gray-100 min-w-0">'
+                        + '<span class="block text-xs font-medium text-gray-500 mb-1">' + key + '</span>'
+                        + '<span class="block text-sm font-semibold text-gray-900 leading-snug break-words">' + val + '</span>'
+                        + '</div>';
                 }
 
-                body.innerHTML = '<div class="flex flex-col sm:flex-row gap-6">'
-                    + '<div class="relative shrink-0 w-full sm:w-72 h-56 sm:h-72 rounded-2xl overflow-hidden ring-1 ring-orange-100 shadow-lg shadow-orange-100/60">' + mediaHtml + '</div>'
-                    + '<div class="flex-1 grid grid-cols-1 min-[480px]:grid-cols-2 gap-3 content-start">' + fields + '</div>'
+                body.innerHTML = '<div class="flex flex-col md:flex-row gap-6">'
+                    + '<div class="relative shrink-0 w-full md:w-64 h-52 md:h-full md:min-h-60 rounded-2xl overflow-hidden ring-1 ring-orange-100 shadow-lg shadow-orange-100/60">' + mediaHtml + '</div>'
+                    + '<div class="flex-1 grid grid-cols-1 min-[480px]:grid-cols-2 gap-3 content-start min-w-0">' + fields + '</div>'
                     + '</div>';
 
                 if (titleEl) titleEl.textContent = title;

@@ -44,7 +44,7 @@
                 <a href="<?= url('pos') ?>" title="Ventas" class="flex items-center gap-3 px-2 py-2 rounded-lg text-sm font-medium sidebar-link <?= ($currentModule ?? '') === 'pos' ? 'nav-active' : '' ?>">
                     <i class="fa-solid fa-cart-shopping w-4 text-center shrink-0"></i><span class="sidebar-text">Ventas</span>
                 </a>
-                <a href="#clients" title="Clientes" class="flex items-center gap-3 px-2 py-2 rounded-lg text-sm font-medium sidebar-link sidebar-anchor">
+                <a href="<?= url('clients') ?>" title="Clientes" class="flex items-center gap-3 px-2 py-2 rounded-lg text-sm font-medium sidebar-link <?= ($currentModule ?? '') === 'clients' ? 'nav-active' : '' ?>">
                     <i class="fa-solid fa-users-line w-4 text-center shrink-0"></i><span class="sidebar-text">Clientes</span>
                 </a>
             </div>
@@ -55,7 +55,7 @@
                 <a href="<?= url('dashboard') ?>" title="Dashboard" class="flex items-center gap-3 px-2 py-2 rounded-lg text-sm font-medium sidebar-link <?= ($currentModule ?? '') === 'dashboard' ? 'nav-active' : '' ?>">
                     <i class="fa-solid fa-gauge-high w-4 text-center shrink-0"></i><span class="sidebar-text">Dashboard</span>
                 </a>
-                <a href="#employees" title="Empleados" class="flex items-center gap-3 px-2 py-2 rounded-lg text-sm font-medium sidebar-link sidebar-anchor">
+                <a href="<?= url('employees') ?>" title="Empleados" class="flex items-center gap-3 px-2 py-2 rounded-lg text-sm font-medium sidebar-link <?= ($currentModule ?? '') === 'employees' ? 'nav-active' : '' ?>">
                     <i class="fa-solid fa-user-tie w-4 text-center shrink-0"></i><span class="sidebar-text">Empleados</span>
                 </a>
             </div>

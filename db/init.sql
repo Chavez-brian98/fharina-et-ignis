@@ -20,7 +20,7 @@ DROP TABLE IF EXISTS
     productos, categorias,
     client_segment, client_segments, clients,
     sales_commissions, performance_reviews, attendances, shifts, empleados,
-    users, roles, notificaciones, settings;
+    roles, notificaciones, settings;
 SET FOREIGN_KEY_CHECKS = 1;
 
 -- ----------------------------------------------------------------------------
@@ -100,6 +100,10 @@ CREATE TABLE empleados (
     name VARCHAR(100) NOT NULL,
     last_name VARCHAR(100) NOT NULL,
     id_document VARCHAR(30) NOT NULL UNIQUE,
+    username VARCHAR(50) UNIQUE,
+    email VARCHAR(150) UNIQUE,
+    password_hash VARCHAR(255),
+    role_id INT,
     phone VARCHAR(20),
     address VARCHAR(255),
     birth_date DATE,
@@ -107,7 +111,13 @@ CREATE TABLE empleados (
     position VARCHAR(80) NOT NULL,
     base_salary DECIMAL(10,2) NOT NULL,
     status ENUM('active','inactive') NOT NULL DEFAULT 'active',
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    last_login TIMESTAMP NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_empleados_role FOREIGN KEY (role_id) REFERENCES roles(id),
+    CONSTRAINT chk_empleados_login CHECK (
+        (role_id IS NULL AND username IS NULL AND email IS NULL AND password_hash IS NULL)
+        OR (role_id IS NOT NULL AND username IS NOT NULL AND email IS NOT NULL AND password_hash IS NOT NULL)
+    )
 ) ENGINE=InnoDB;
 
 CREATE TABLE shifts (
@@ -141,23 +151,6 @@ CREATE TABLE performance_reviews (
     comments TEXT,
     CONSTRAINT fk_reviews_employee FOREIGN KEY (employee_id) REFERENCES empleados(id),
     CONSTRAINT fk_reviews_reviewer FOREIGN KEY (reviewer_id) REFERENCES empleados(id)
-) ENGINE=InnoDB;
-
--- ----------------------------------------------------------------------------
--- 1. SEGURIDAD / USUARIOS (depende de empleados)
--- ----------------------------------------------------------------------------
-CREATE TABLE users (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    employee_id INT NULL,
-    role_id INT NOT NULL,
-    username VARCHAR(50) NOT NULL UNIQUE,
-    email VARCHAR(150) NOT NULL UNIQUE,
-    password_hash VARCHAR(255) NOT NULL,
-    status ENUM('active','inactive') NOT NULL DEFAULT 'active',
-    last_login TIMESTAMP NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_users_role FOREIGN KEY (role_id) REFERENCES roles(id),
-    CONSTRAINT fk_users_employee FOREIGN KEY (employee_id) REFERENCES empleados(id)
 ) ENGINE=InnoDB;
 
 -- ----------------------------------------------------------------------------
@@ -237,7 +230,7 @@ CREATE TABLE productos (
 ) ENGINE=InnoDB;
 
 -- ----------------------------------------------------------------------------
--- 6. INVENTARIO (depende de ingredientes, users, productos)
+-- 6. INVENTARIO (depende de ingredientes, empleados, productos)
 -- ----------------------------------------------------------------------------
 CREATE TABLE ingredient_inventory_movements (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -245,11 +238,11 @@ CREATE TABLE ingredient_inventory_movements (
     movement_type ENUM('entrada','salida','ajuste','merma') NOT NULL,
     quantity DECIMAL(10,3) NOT NULL,
     reason VARCHAR(255),
-    user_id INT NOT NULL,
+    employee_id INT NOT NULL,
     reference VARCHAR(100),
     movement_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_iim_ingredient FOREIGN KEY (ingredient_id) REFERENCES ingredientes(id),
-    CONSTRAINT fk_iim_user FOREIGN KEY (user_id) REFERENCES users(id),
+    CONSTRAINT fk_iim_employee FOREIGN KEY (employee_id) REFERENCES empleados(id),
     INDEX idx_iim_date (movement_date)
 ) ENGINE=InnoDB;
 
@@ -259,16 +252,16 @@ CREATE TABLE product_inventory_movements (
     movement_type ENUM('entrada','salida','ajuste','merma') NOT NULL,
     quantity DECIMAL(10,3) NOT NULL,
     reason VARCHAR(255),
-    user_id INT NOT NULL,
+    employee_id INT NOT NULL,
     reference VARCHAR(100),
     movement_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_pim_product FOREIGN KEY (product_id) REFERENCES productos(id),
-    CONSTRAINT fk_pim_user FOREIGN KEY (user_id) REFERENCES users(id),
+    CONSTRAINT fk_pim_employee FOREIGN KEY (employee_id) REFERENCES empleados(id),
     INDEX idx_pim_date (movement_date)
 ) ENGINE=InnoDB;
 
 -- ----------------------------------------------------------------------------
--- 7. COMPRAS (depende de proveedores, ingredientes, users)
+-- 7. COMPRAS (depende de proveedores, ingredientes, empleados)
 -- ----------------------------------------------------------------------------
 CREATE TABLE supplier_price_history (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -284,13 +277,13 @@ CREATE TABLE supplier_price_history (
 CREATE TABLE purchase_orders (
     id INT AUTO_INCREMENT PRIMARY KEY,
     supplier_id INT NOT NULL,
-    user_id INT NOT NULL,
+    employee_id INT NOT NULL,
     order_date DATE NOT NULL,
     estimated_delivery_date DATE,
     state ENUM('pendiente','parcial','recibida','cancelada') NOT NULL DEFAULT 'pendiente',
     total DECIMAL(10,2) NOT NULL DEFAULT 0,
     CONSTRAINT fk_po_supplier FOREIGN KEY (supplier_id) REFERENCES proveedores(id),
-    CONSTRAINT fk_po_user FOREIGN KEY (user_id) REFERENCES users(id),
+    CONSTRAINT fk_po_employee FOREIGN KEY (employee_id) REFERENCES empleados(id),
     INDEX idx_po_state (state)
 ) ENGINE=InnoDB;
 
@@ -308,11 +301,11 @@ CREATE TABLE purchase_order_details (
 CREATE TABLE merchandise_receipts (
     id INT AUTO_INCREMENT PRIMARY KEY,
     purchase_order_id INT NOT NULL,
-    user_id INT NOT NULL,
+    employee_id INT NOT NULL,
     receipt_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     observations TEXT,
     CONSTRAINT fk_receipts_order FOREIGN KEY (purchase_order_id) REFERENCES purchase_orders(id),
-    CONSTRAINT fk_receipts_user FOREIGN KEY (user_id) REFERENCES users(id)
+    CONSTRAINT fk_receipts_employee FOREIGN KEY (employee_id) REFERENCES empleados(id)
 ) ENGINE=InnoDB;
 
 CREATE TABLE receipt_details (
@@ -365,12 +358,12 @@ CREATE TABLE cupones (
 ) ENGINE=InnoDB;
 
 -- ----------------------------------------------------------------------------
--- 10. CAJA (depende de users)
+-- 10. CAJA (depende de empleados)
 -- ----------------------------------------------------------------------------
 CREATE TABLE caja (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    opening_user_id INT NOT NULL,
-    closing_user_id INT NULL,
+    opening_employee_id INT NOT NULL,
+    closing_employee_id INT NULL,
     cash_date DATE NOT NULL,
     opening_time TIME NOT NULL,
     initial_amount DECIMAL(10,2) NOT NULL,
@@ -379,8 +372,8 @@ CREATE TABLE caja (
     physical_final_amount DECIMAL(10,2),
     difference DECIMAL(10,2),
     state ENUM('abierta','cerrada') NOT NULL DEFAULT 'abierta',
-    CONSTRAINT fk_cash_opening_user FOREIGN KEY (opening_user_id) REFERENCES users(id),
-    CONSTRAINT fk_cash_closing_user FOREIGN KEY (closing_user_id) REFERENCES users(id),
+    CONSTRAINT fk_cash_opening_employee FOREIGN KEY (opening_employee_id) REFERENCES empleados(id),
+    CONSTRAINT fk_cash_closing_employee FOREIGN KEY (closing_employee_id) REFERENCES empleados(id),
     INDEX idx_cash_state (state),
     INDEX idx_cash_date (cash_date)
 ) ENGINE=InnoDB;
@@ -388,13 +381,13 @@ CREATE TABLE caja (
 CREATE TABLE cash_register_movements (
     id INT AUTO_INCREMENT PRIMARY KEY,
     cash_register_id INT NOT NULL,
-    user_id INT NOT NULL,
+    employee_id INT NOT NULL,
     movement_type ENUM('ingreso_extra','retiro') NOT NULL,
     amount DECIMAL(10,2) NOT NULL,
     reason VARCHAR(255) NOT NULL,
     movement_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_crm_register FOREIGN KEY (cash_register_id) REFERENCES caja(id),
-    CONSTRAINT fk_crm_user FOREIGN KEY (user_id) REFERENCES users(id)
+    CONSTRAINT fk_crm_employee FOREIGN KEY (employee_id) REFERENCES empleados(id)
 ) ENGINE=InnoDB;
 
 -- ----------------------------------------------------------------------------
@@ -455,12 +448,12 @@ CREATE TABLE sales_commissions (
 ) ENGINE=InnoDB;
 
 -- ----------------------------------------------------------------------------
--- 8. PEDIDOS PERSONALIZADOS (depende de clients, users, productos)
+-- 8. PEDIDOS PERSONALIZADOS (depende de clients, empleados, productos)
 -- ----------------------------------------------------------------------------
 CREATE TABLE pedidos (
     id INT AUTO_INCREMENT PRIMARY KEY,
     client_id INT NOT NULL,
-    recorded_by_user_id INT NOT NULL,
+    recorded_by_employee_id INT NOT NULL,
     order_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     delivery_date DATE NOT NULL,
     state ENUM('pendiente','aprobado','en_produccion','listo','entregado','rechazado','cancelado') NOT NULL DEFAULT 'pendiente',
@@ -470,7 +463,7 @@ CREATE TABLE pedidos (
     remaining_balance DECIMAL(10,2) NOT NULL DEFAULT 0,
     notes TEXT,
     CONSTRAINT fk_orders_client FOREIGN KEY (client_id) REFERENCES clients(id),
-    CONSTRAINT fk_orders_user FOREIGN KEY (recorded_by_user_id) REFERENCES users(id),
+    CONSTRAINT fk_orders_employee FOREIGN KEY (recorded_by_employee_id) REFERENCES empleados(id),
     INDEX idx_orders_state (state),
     INDEX idx_orders_date (order_date)
 ) ENGINE=InnoDB;
@@ -490,25 +483,25 @@ CREATE TABLE order_details (
 CREATE TABLE order_payments (
     id INT AUTO_INCREMENT PRIMARY KEY,
     order_id INT NOT NULL,
-    user_id INT NOT NULL,
+    employee_id INT NOT NULL,
     amount DECIMAL(10,2) NOT NULL,
     payment_method VARCHAR(40) NOT NULL,
     payment_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_op_order FOREIGN KEY (order_id) REFERENCES pedidos(id),
-    CONSTRAINT fk_op_user FOREIGN KEY (user_id) REFERENCES users(id),
+    CONSTRAINT fk_op_employee FOREIGN KEY (employee_id) REFERENCES empleados(id),
     INDEX idx_op_date (payment_date)
 ) ENGINE=InnoDB;
 
 CREATE TABLE order_status_history (
     id INT AUTO_INCREMENT PRIMARY KEY,
     order_id INT NOT NULL,
-    user_id INT NOT NULL,
+    employee_id INT NOT NULL,
     previous_state ENUM('pendiente','aprobado','en_produccion','listo','entregado','rechazado','cancelado') NULL,
     new_state ENUM('pendiente','aprobado','en_produccion','listo','entregado','rechazado','cancelado') NOT NULL,
     comment VARCHAR(255),
     change_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_osh_order FOREIGN KEY (order_id) REFERENCES pedidos(id),
-    CONSTRAINT fk_osh_user FOREIGN KEY (user_id) REFERENCES users(id)
+    CONSTRAINT fk_osh_employee FOREIGN KEY (employee_id) REFERENCES empleados(id)
 ) ENGINE=InnoDB;
 
 CREATE TABLE order_tickets (
@@ -537,11 +530,11 @@ CREATE TABLE email_notifications (
 ) ENGINE=InnoDB;
 
 -- ----------------------------------------------------------------------------
--- 12. NOTIFICACIONES INTERNAS (depende de users)
+-- 12. NOTIFICACIONES INTERNAS (depende de empleados)
 -- ----------------------------------------------------------------------------
 CREATE TABLE notificaciones (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    destination_user_id INT NULL,
+    destination_employee_id INT NULL,
     notification_type VARCHAR(60) NOT NULL,
     title VARCHAR(120) NOT NULL,
     message VARCHAR(255) NOT NULL,
@@ -549,7 +542,7 @@ CREATE TABLE notificaciones (
     reference_id INT,
     readed BOOLEAN NOT NULL DEFAULT FALSE,
     creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_notif_user FOREIGN KEY (destination_user_id) REFERENCES users(id)
+    CONSTRAINT fk_notif_employee FOREIGN KEY (destination_employee_id) REFERENCES empleados(id)
 ) ENGINE=InnoDB;
 
 -- ----------------------------------------------------------------------------
@@ -613,16 +606,13 @@ INSERT INTO clients (name, last_name, phone, email, address) VALUES
 INSERT INTO client_segment (client_id, segment_id) VALUES (1, 1), (2, 2);
 
 -- ----------------------------------------------------------------------------
--- DASHBOARD SEED (empleados, users, promociones, caja, ventas, pedidos)
+-- DASHBOARD SEED (empleados, promociones, caja, ventas, pedidos)
 -- ----------------------------------------------------------------------------
-INSERT INTO empleados (id, name, last_name, id_document, phone, address, birth_date, hire_date, position, base_salary) VALUES
-(1, 'Carlos', 'Ramírez', 'PAN-0001', '5555-0101', 'Zona 5, Ciudad', '1990-03-15', '2023-05-01', 'Panadero', 1200.00),
-(2, 'María', 'González', 'CAJ-0001', '5555-0102', 'Zona 3, Ciudad', '1995-07-22', '2023-06-15', 'Cajero', 1000.00);
-
-INSERT INTO users (employee_id, role_id, username, email, password_hash) VALUES
-(NULL, 1, 'BRIAN JOSUE CHAVEZ RECINOS', 'admin@ignis.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi'),
-(2, 2, 'cajero', 'maria.gonzalez@bakery.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi'),
-(1, 3, 'ramirez', 'carlos.ramirez@bakery.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi');
+-- Los empleados con credenciales de acceso (role_id/username/email/password_hash)
+INSERT INTO empleados (id, name, last_name, id_document, username, email, password_hash, role_id, phone, address, birth_date, hire_date, position, base_salary) VALUES
+(1, 'Carlos', 'Ramírez', 'PAN-0001', 'ramirez', 'carlos.ramirez@bakery.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 3, '5555-0101', 'Zona 5, Ciudad', '1990-03-15', '2023-05-01', 'Panadero', 1200.00),
+(2, 'María', 'González', 'CAJ-0001', 'cajero', 'maria.gonzalez@bakery.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 2, '5555-0102', 'Zona 3, Ciudad', '1995-07-22', '2023-06-15', 'Cajero', 1000.00),
+(3, 'BRIAN JOSUE CHAVEZ RECINOS', 'Administrador', 'ADM-0001', 'BRIAN JOSUE CHAVEZ RECINOS', 'admin@ignis.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 1, NULL, NULL, NULL, '2023-01-01', 'Administrador', 1500.00);
 
 INSERT INTO promociones (id, name, promotion_type, discount_percentage, start_date, end_date, status) VALUES
 (1, '2x1 Pan de Queso', 'dos_por_uno', 50.00, DATE_SUB(CURDATE(), INTERVAL 7 DAY), DATE_ADD(CURDATE(), INTERVAL 7 DAY), 'active'),
@@ -632,7 +622,7 @@ INSERT INTO promociones (id, name, promotion_type, discount_percentage, start_da
 INSERT INTO promotion_product (promotion_id, product_id) VALUES (1, 3), (2, 4);
 
 -- Caja de los últimos 14 días (la de hoy queda abierta)
-INSERT INTO caja (opening_user_id, closing_user_id, cash_date, opening_time, initial_amount, closing_time, system_final_amount, physical_final_amount, difference, state) VALUES
+INSERT INTO caja (opening_employee_id, closing_employee_id, cash_date, opening_time, initial_amount, closing_time, system_final_amount, physical_final_amount, difference, state) VALUES
 (2, 2, DATE_SUB(CURDATE(), INTERVAL 13 DAY), '08:00:00', 200.00, '21:00:00', 258.00, 258.00, 0.00, 'cerrada'),
 (2, 2, DATE_SUB(CURDATE(), INTERVAL 12 DAY), '08:00:00', 250.00, '21:00:00', 332.50, 332.50, 0.00, 'cerrada'),
 (2, 2, DATE_SUB(CURDATE(), INTERVAL 11 DAY), '08:00:00', 220.00, '21:00:00', 300.50, 300.50, 0.00, 'cerrada'),
@@ -737,13 +727,13 @@ INSERT INTO sale_details (sale_id, product_id, quantity, unit_price, discount, s
 (41, 1, 55, 1.50, 0, 82.50),
 (42, 4, 4, 35.00, 0, 140.00);
 
-INSERT INTO pedidos (id, client_id, recorded_by_user_id, order_date, delivery_date, state, rejection_reason, total, paid_amount, remaining_balance, notes) VALUES
-(1, 1, 1, DATE_SUB(CURDATE(), INTERVAL 3 DAY), DATE_ADD(CURDATE(), INTERVAL 2 DAY), 'pendiente', NULL, 350.00, 100.00, 250.00, 'Pastel de bodas para 50 personas'),
-(2, 2, 1, DATE_SUB(CURDATE(), INTERVAL 4 DAY), DATE_ADD(CURDATE(), INTERVAL 1 DAY), 'aprobado', NULL, 120.00, 120.00, 0.00, 'Pedido para cumpleaños'),
-(3, 1, 1, DATE_SUB(CURDATE(), INTERVAL 2 DAY), DATE_ADD(CURDATE(), INTERVAL 5 DAY), 'en_produccion', NULL, 210.00, 100.00, 110.00, 'Torta especial de chocolate'),
-(4, 2, 1, DATE_SUB(CURDATE(), INTERVAL 1 DAY), CURDATE(), 'listo', NULL, 45.00, 45.00, 0.00, 'Listo para recoger'),
-(5, 1, 1, DATE_SUB(CURDATE(), INTERVAL 8 DAY), DATE_SUB(CURDATE(), INTERVAL 6 DAY), 'entregado', NULL, 80.00, 80.00, 0.00, 'Entregado a domicilio'),
-(6, 2, 1, DATE_SUB(CURDATE(), INTERVAL 5 DAY), DATE_SUB(CURDATE(), INTERVAL 3 DAY), 'rechazado', 'Cliente canceló el pedido', 100.00, 0.00, 0.00, 'Cancelado por el cliente');
+INSERT INTO pedidos (id, client_id, recorded_by_employee_id, order_date, delivery_date, state, rejection_reason, total, paid_amount, remaining_balance, notes) VALUES
+(1, 1, 3, DATE_SUB(CURDATE(), INTERVAL 3 DAY), DATE_ADD(CURDATE(), INTERVAL 2 DAY), 'pendiente', NULL, 350.00, 100.00, 250.00, 'Pastel de bodas para 50 personas'),
+(2, 2, 3, DATE_SUB(CURDATE(), INTERVAL 4 DAY), DATE_ADD(CURDATE(), INTERVAL 1 DAY), 'aprobado', NULL, 120.00, 120.00, 0.00, 'Pedido para cumpleaños'),
+(3, 1, 3, DATE_SUB(CURDATE(), INTERVAL 2 DAY), DATE_ADD(CURDATE(), INTERVAL 5 DAY), 'en_produccion', NULL, 210.00, 100.00, 110.00, 'Torta especial de chocolate'),
+(4, 2, 3, DATE_SUB(CURDATE(), INTERVAL 1 DAY), CURDATE(), 'listo', NULL, 45.00, 45.00, 0.00, 'Listo para recoger'),
+(5, 1, 3, DATE_SUB(CURDATE(), INTERVAL 8 DAY), DATE_SUB(CURDATE(), INTERVAL 6 DAY), 'entregado', NULL, 80.00, 80.00, 0.00, 'Entregado a domicilio'),
+(6, 2, 3, DATE_SUB(CURDATE(), INTERVAL 5 DAY), DATE_SUB(CURDATE(), INTERVAL 3 DAY), 'rechazado', 'Cliente canceló el pedido', 100.00, 0.00, 0.00, 'Cancelado por el cliente');
 
 INSERT INTO order_details (order_id, product_id, personalized_description, quantity, unit_price, subtotal) VALUES
 (1, 4, 'Pastel de bodas', 1, 350.00, 350.00),
@@ -753,9 +743,9 @@ INSERT INTO order_details (order_id, product_id, personalized_description, quant
 (5, 3, 'Panes de queso', 32, 2.50, 80.00),
 (6, 4, 'Pastel de chocolate', 1, 100.00, 100.00);
 
-INSERT INTO notificaciones (destination_user_id, notification_type, title, message, reference_type, reference_id) VALUES
-(1, 'stock_bajo', 'Stock bajo', 'El producto "Concha" está por debajo del stock mínimo.', 'producto', 2),
-(1, 'pedido_listo', 'Pedido listo', 'El pedido #4 está listo para recoger.', 'pedido', 4);
+INSERT INTO notificaciones (destination_employee_id, notification_type, title, message, reference_type, reference_id) VALUES
+(3, 'stock_bajo', 'Stock bajo', 'El producto "Concha" está por debajo del stock mínimo.', 'producto', 2),
+(3, 'pedido_listo', 'Pedido listo', 'El pedido #4 está listo para recoger.', 'pedido', 4);
 
 INSERT INTO settings (setting_key, setting_value) VALUES
 ('system_name', 'Panadería'),
