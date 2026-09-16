@@ -2,28 +2,104 @@
    Bakery POS — estilos complementarios a Tailwind
    ========================================================================== */
 
-/* Sidebar */
+/* Sidebar — móvil/tablet: drawer deslizable desde la izquierda */
 .sidebar {
-    transition: width .25s ease;
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 40;
+    width: 16rem;
+    transform: translateX(-100%);
+    transition: transform .25s ease;
 }
-body.sidebar-collapsed .sidebar {
-    width: 4.75rem;
+body.sidebar-open .sidebar {
+    transform: translateX(0);
 }
-body.sidebar-collapsed .brand-row,
-body.sidebar-collapsed .user-row {
+#sidebarBackdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 30;
+    background: rgba(0, 0, 0, .45);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .2s ease;
+}
+body.sidebar-open #sidebarBackdrop {
+    opacity: 1;
+    pointer-events: auto;
+}
+body.sidebar-open #sidebarOpenBtn,
+body.sidebar-open #sidebarToggle {
+    display: none !important;
+}
+
+/* Sidebar — escritorio (>= 1024px): colapsable inline */
+@media (min-width: 1024px) {
+    .sidebar {
+        position: sticky;
+        top: 0;
+        height: 100vh;
+        width: 16rem;
+        transform: none;
+        z-index: auto;
+        transition: width .25s ease;
+    }
+    #sidebarBackdrop {
+        display: none;
+    }
+    body.sidebar-collapsed .sidebar {
+        width: 4.75rem;
+    }
+    body.sidebar-collapsed .brand-row,
+    body.sidebar-collapsed .user-row {
+        justify-content: center;
+        padding-left: .5rem;
+        padding-right: .5rem;
+    }
+    body.sidebar-collapsed .brand-box {
+        width: 2.25rem;
+        height: 2.25rem;
+    }
+    body.sidebar-collapsed #sidebarToggle {
+        display: none;
+    }
+    body.sidebar-collapsed .sidebar-text,
+    body.sidebar-collapsed .sidebar-section-title {
+        display: none;
+    }
+    body.sidebar-collapsed .sidebar-link {
+        justify-content: center;
+        gap: 0;
+        padding-left: 0;
+        padding-right: 0;
+    }
+}
+
+/* Logo <-> botón de expandir (escritorio colapsado: al pasar el cursor sobre el logo
+   se esfuma y aparece el botón centrado; clic en él expande) */
+.brand-box .brand-icon,
+.brand-box .brand-expand {
+    transition: opacity .2s ease;
+}
+.brand-box .brand-expand {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
     justify-content: center;
-    padding-left: .5rem;
-    padding-right: .5rem;
+    opacity: 0;
+    pointer-events: none;
 }
-body.sidebar-collapsed .sidebar-text,
-body.sidebar-collapsed .sidebar-section-title {
-    display: none;
+body.sidebar-collapsed .brand-box:hover {
+    cursor: pointer;
 }
-body.sidebar-collapsed .sidebar-link {
-    justify-content: center;
-    gap: 0;
-    padding-left: 0;
-    padding-right: 0;
+body.sidebar-collapsed .brand-box:hover .brand-icon {
+    opacity: 0;
+}
+body.sidebar-collapsed .brand-box:hover .brand-expand {
+    opacity: 1;
+    pointer-events: auto;
 }
 
 .sidebar-link {
@@ -45,6 +121,28 @@ body.sidebar-collapsed .sidebar-link {
 .sidebar-anchor:hover {
     background: #fff7ed;
     color: #ea580c;
+}
+
+/* POS */
+.pos-chip {
+    background: #f3f4f6;
+    color: #6b7280;
+    border: 1px solid transparent;
+}
+.pos-chip:hover {
+    background: #fff7ed;
+    color: #ea580c;
+}
+.pos-chip.active {
+    background: #f97316;
+    color: #fff;
+    box-shadow: 0 4px 10px rgba(249, 115, 22, .25);
+}
+.pos-product-icon {
+    transition: transform .15s ease;
+}
+.pos-card:hover .pos-product-icon {
+    transform: scale(1.12);
 }
 
 /* Modal */

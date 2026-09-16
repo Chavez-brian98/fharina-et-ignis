@@ -22,11 +22,17 @@ require_once __DIR__ . '/../models/Product.php';
 require_once __DIR__ . '/../models/Dashboard.php';
 require_once __DIR__ . '/../models/User.php';
 require_once __DIR__ . '/../models/Setting.php';
+require_once __DIR__ . '/../models/Sale.php';
+require_once __DIR__ . '/../models/Client.php';
+require_once __DIR__ . '/../models/Employee.php';
 require_once __DIR__ . '/../controllers/CategoryController.php';
 require_once __DIR__ . '/../controllers/ProductController.php';
 require_once __DIR__ . '/../controllers/DashboardController.php';
 require_once __DIR__ . '/../controllers/AuthController.php';
 require_once __DIR__ . '/../controllers/SettingsController.php';
+require_once __DIR__ . '/../controllers/PosController.php';
+require_once __DIR__ . '/../controllers/ClientController.php';
+require_once __DIR__ . '/../controllers/EmployeeController.php';
 
 $dotenv = Dotenv::createImmutable(__DIR__ . '/../');
 $dotenv->load();
@@ -136,6 +142,9 @@ $controllerMap = [
     'products' => ProductController::class,
     'categories' => CategoryController::class,
     'settings' => SettingsController::class,
+    'pos' => PosController::class,
+    'clients' => ClientController::class,
+    'employees' => EmployeeController::class,
 ];
 
 $key = strtolower($controllerName);

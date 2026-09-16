@@ -29,19 +29,84 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     // ==========================================================================
-    // SIDEBAR COLAPSABLE (solo iconos al colapsar, estado persistido)
+    // SIDEBAR RESPONSIVE
+    // Escritorio (>=1024px): colapsable inline (solo iconos), estado persistido.
+    // Móvil/tablet (<1024px): drawer deslizable con fondo oscuro (#sidebarBackdrop).
     // ==========================================================================
     const sidebarToggle = document.getElementById('sidebarToggle');
+    const sidebarOpenBtn = document.getElementById('sidebarOpenBtn');
+    const sidebarBackdrop = document.getElementById('sidebarBackdrop');
+
+    const isDesktop = function () {
+        return window.matchMedia('(min-width: 1024px)').matches;
+    };
+
+    const openDrawer = function () {
+        document.body.classList.add('sidebar-open');
+        document.body.style.overflow = 'hidden';
+    };
+    const closeDrawer = function () {
+        document.body.classList.remove('sidebar-open');
+        document.body.style.overflow = '';
+    };
+
+    // Al cargar: restaurar estado colapsado SOLO en escritorio.
+    if (isDesktop() && localStorage.getItem('sidebar-collapsed') === '1') {
+        document.body.classList.add('sidebar-collapsed');
+    }
+
+    // Botón interno del sidebar: en escritorio colapsa; en móvil cierra el drawer.
     if (sidebarToggle) {
-        const applyCollapsed = function () {
-            document.body.classList.toggle('sidebar-collapsed', localStorage.getItem('sidebar-collapsed') === '1');
-        };
-        applyCollapsed();
         sidebarToggle.addEventListener('click', function () {
-            const collapsed = document.body.classList.toggle('sidebar-collapsed');
-            localStorage.setItem('sidebar-collapsed', collapsed ? '1' : '0');
+            if (isDesktop()) {
+                const collapsed = document.body.classList.toggle('sidebar-collapsed');
+                localStorage.setItem('sidebar-collapsed', collapsed ? '1' : '0');
+            } else {
+                closeDrawer();
+            }
         });
     }
+
+    // Escritorio colapsado: al pasar el cursor sobre el logo aparece el botón de expandir
+    // (CSS); un clic sobre él expande y todo vuelve a la normalidad.
+    const brandRow = document.querySelector('.sidebar .brand-row');
+    if (brandRow) {
+        brandRow.addEventListener('click', function () {
+            if (!isDesktop() || !document.body.classList.contains('sidebar-collapsed')) return;
+            document.body.classList.remove('sidebar-collapsed');
+            localStorage.setItem('sidebar-collapsed', '0');
+        });
+    }
+
+    // Botón flotante (móvil/tablet): abre y cierra el drawer.
+    if (sidebarOpenBtn) {
+        sidebarOpenBtn.addEventListener('click', function () {
+            if (document.body.classList.contains('sidebar-open')) {
+                closeDrawer();
+            } else {
+                openDrawer();
+            }
+        });
+    }
+
+    // Clic en el fondo oscuro: cierra el drawer.
+    if (sidebarBackdrop) {
+        sidebarBackdrop.addEventListener('click', function () {
+            closeDrawer();
+        });
+    }
+
+    // Tecla Esc: cierra el drawer (en móvil).
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && document.body.classList.contains('sidebar-open')) {
+            closeDrawer();
+        }
+    });
+
+    // Al redimensionar a escritorio, asegurar que el drawer no quede abierto en móvil.
+    window.addEventListener('resize', function () {
+        if (isDesktop()) closeDrawer();
+    });
 
     // ==========================================================================
     // BÚSQUEDA EN TIEMPO REAL + FILTROS (aplica a cualquier CRUD)
@@ -137,23 +202,16 @@ document.addEventListener('DOMContentLoaded', function () {
                     if (key === 'ID') continue;
                     const rawVal = data[key];
                     const val = (rawVal !== null && rawVal !== '' && rawVal !== undefined) ? rawVal : '—';
-                    const isLong = key === 'Nombre' || key === 'Descripción' || String(val).length > 30;
-                    if (isLong) {
-                        fields += '<div class="sm:col-span-2 rounded-xl bg-white px-4 py-3 ring-1 ring-gray-100">'
-                            + '<span class="block text-sm font-medium text-gray-500 mb-1">' + key + '</span>'
-                            + '<span class="block text-sm font-semibold text-gray-900 leading-snug">' + val + '</span>'
-                            + '</div>';
-                    } else {
-                        fields += '<div class="flex items-center justify-between gap-3 rounded-xl bg-white px-4 py-3.5 ring-1 ring-gray-100">'
-                            + '<span class="text-sm font-medium text-gray-500 shrink-0">' + key + '</span>'
-                            + '<span class="text-sm font-semibold text-gray-900 text-right">' + val + '</span>'
-                            + '</div>';
-                    }
+                    const isLong = key === 'Nombre' || key === 'Descripción' || key === 'Dirección' || String(val).length > 30;
+                    fields += '<div class="' + (isLong ? 'sm:col-span-2 ' : '') + 'rounded-xl bg-white px-4 py-3 ring-1 ring-gray-100 min-w-0">'
+                        + '<span class="block text-xs font-medium text-gray-500 mb-1">' + key + '</span>'
+                        + '<span class="block text-sm font-semibold text-gray-900 leading-snug break-words">' + val + '</span>'
+                        + '</div>';
                 }
 
-                body.innerHTML = '<div class="flex flex-col sm:flex-row gap-6">'
-                    + '<div class="relative shrink-0 w-full sm:w-72 h-56 sm:h-72 rounded-2xl overflow-hidden ring-1 ring-orange-100 shadow-lg shadow-orange-100/60">' + mediaHtml + '</div>'
-                    + '<div class="flex-1 grid grid-cols-1 min-[480px]:grid-cols-2 gap-3 content-start">' + fields + '</div>'
+                body.innerHTML = '<div class="flex flex-col md:flex-row gap-6">'
+                    + '<div class="relative shrink-0 w-full md:w-64 h-52 md:h-full md:min-h-60 rounded-2xl overflow-hidden ring-1 ring-orange-100 shadow-lg shadow-orange-100/60">' + mediaHtml + '</div>'
+                    + '<div class="flex-1 grid grid-cols-1 min-[480px]:grid-cols-2 gap-3 content-start min-w-0">' + fields + '</div>'
                     + '</div>';
 
                 if (titleEl) titleEl.textContent = title;

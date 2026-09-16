@@ -16,28 +16,38 @@
 <div class="flex min-h-screen">
 
     <!-- ======================= SIDEBAR (colapsable) ======================= -->
-    <aside id="sidebar" class="sidebar w-64 bg-white border-r border-gray-200 flex flex-col shrink-0 sticky top-0 h-screen">
-        <div class="flex items-center justify-between gap-2 px-4 py-5 border-b border-gray-100">
-            <div class="flex items-center gap-2.5 brand-row">
-                <div class="w-9 h-9 rounded-xl bg-white ring-1 ring-gray-100 flex items-center justify-center overflow-hidden shrink-0">
+    <aside id="sidebar" class="sidebar bg-white border-r border-gray-200 flex flex-col">
+        <div class="relative flex items-center justify-center px-4 py-5 border-b border-gray-100">
+            <div class="brand-row flex flex-col items-center gap-2.5 max-w-full">
+                <div class="brand-box relative w-14 h-14 rounded-2xl flex items-center justify-center overflow-hidden shrink-0 <?= setting('system_logo') ? '' : 'bg-orange-500 text-white shadow-md shadow-orange-200' ?>">
                     <?php if (setting('system_logo')): ?>
-                        <img src="<?= esc(setting('system_logo')) ?>" alt="Logo" class="w-full h-full object-contain bg-orange-500/10">
+                        <img src="<?= esc(setting('system_logo')) ?>" alt="Logo" class="brand-icon w-full h-full object-contain">
                     <?php else: ?>
-                        <div class="w-9 h-9 rounded-xl bg-orange-500 flex items-center justify-center text-white shadow-md shadow-orange-200">
-                            <i class="fa-solid fa-bread-slice"></i>
-                        </div>
+                        <i class="fa-solid fa-bread-slice text-xl brand-icon"></i>
                     <?php endif; ?>
-                </div>
-                <div class="sidebar-text">
-                    <p class="font-bold text-gray-900 leading-tight truncate"><?= esc(setting('business_name', 'Panadería')) ?></p>
+                    <i class="fa-solid fa-bars-staggered brand-expand text-orange-500 text-lg" aria-hidden="true"></i>
                 </div>
             </div>
-            <button type="button" id="sidebarToggle" class="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:bg-orange-50 hover:text-orange-500 transition-colors shrink-0" title="Colapsar menú">
+            <button type="button" id="sidebarToggle" class="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:bg-orange-50 hover:text-orange-500 transition-colors" title="Colapsar menú">
                 <i class="fa-solid fa-bars-staggered"></i>
             </button>
         </div>
 
         <nav class="flex-1 overflow-y-auto px-3 py-4 space-y-5">
+
+            <!-- PUNTO DE VENTA -->
+            <div>
+                <p class="px-2 mb-1 text-[11px] font-bold tracking-widest text-gray-400 uppercase sidebar-section-title">Punto de Venta</p>
+                <a href="#cash-register" title="Caja" class="flex items-center gap-3 px-2 py-2 rounded-lg text-sm font-medium sidebar-link sidebar-anchor">
+                    <i class="fa-solid fa-cash-register w-4 text-center shrink-0"></i><span class="sidebar-text">Caja</span>
+                </a>
+                <a href="<?= url('pos') ?>" title="Ventas" class="flex items-center gap-3 px-2 py-2 rounded-lg text-sm font-medium sidebar-link <?= ($currentModule ?? '') === 'pos' ? 'nav-active' : '' ?>">
+                    <i class="fa-solid fa-cart-shopping w-4 text-center shrink-0"></i><span class="sidebar-text">Ventas</span>
+                </a>
+                <a href="<?= url('clients') ?>" title="Clientes" class="flex items-center gap-3 px-2 py-2 rounded-lg text-sm font-medium sidebar-link <?= ($currentModule ?? '') === 'clients' ? 'nav-active' : '' ?>">
+                    <i class="fa-solid fa-users-line w-4 text-center shrink-0"></i><span class="sidebar-text">Clientes</span>
+                </a>
+            </div>
 
             <!-- SISTEMAS -->
             <div>
@@ -45,17 +55,8 @@
                 <a href="<?= url('dashboard') ?>" title="Dashboard" class="flex items-center gap-3 px-2 py-2 rounded-lg text-sm font-medium sidebar-link <?= ($currentModule ?? '') === 'dashboard' ? 'nav-active' : '' ?>">
                     <i class="fa-solid fa-gauge-high w-4 text-center shrink-0"></i><span class="sidebar-text">Dashboard</span>
                 </a>
-                <a href="#employees" title="Empleados" class="flex items-center gap-3 px-2 py-2 rounded-lg text-sm font-medium sidebar-link sidebar-anchor">
+                <a href="<?= url('employees') ?>" title="Empleados" class="flex items-center gap-3 px-2 py-2 rounded-lg text-sm font-medium sidebar-link <?= ($currentModule ?? '') === 'employees' ? 'nav-active' : '' ?>">
                     <i class="fa-solid fa-user-tie w-4 text-center shrink-0"></i><span class="sidebar-text">Empleados</span>
-                </a>
-                <a href="#users" title="Usuarios" class="flex items-center gap-3 px-2 py-2 rounded-lg text-sm font-medium sidebar-link sidebar-anchor">
-                    <i class="fa-solid fa-users w-4 text-center shrink-0"></i><span class="sidebar-text">Usuarios</span>
-                </a>
-                <a href="#notifications" title="Notificaciones" class="flex items-center gap-3 px-2 py-2 rounded-lg text-sm font-medium sidebar-link sidebar-anchor">
-                    <i class="fa-solid fa-bell w-4 text-center shrink-0"></i><span class="sidebar-text">Notificaciones</span>
-                </a>
-                <a href="<?= url('settings') ?>" title="Configuración" class="flex items-center gap-3 px-2 py-2 rounded-lg text-sm font-medium sidebar-link <?= ($currentModule ?? '') === 'settings' ? 'nav-active' : '' ?>">
-                    <i class="fa-solid fa-gear w-4 text-center shrink-0"></i><span class="sidebar-text">Configuración</span>
                 </a>
             </div>
 
@@ -90,20 +91,6 @@
                 </a>
             </div>
 
-            <!-- PUNTO DE VENTA -->
-            <div>
-                <p class="px-2 mb-1 text-[11px] font-bold tracking-widest text-gray-400 uppercase sidebar-section-title">Punto de Venta</p>
-                <a href="#cash-register" title="Caja" class="flex items-center gap-3 px-2 py-2 rounded-lg text-sm font-medium sidebar-link sidebar-anchor">
-                    <i class="fa-solid fa-cash-register w-4 text-center shrink-0"></i><span class="sidebar-text">Caja</span>
-                </a>
-                <a href="#sales" title="Ventas" class="flex items-center gap-3 px-2 py-2 rounded-lg text-sm font-medium sidebar-link sidebar-anchor">
-                    <i class="fa-solid fa-cart-shopping w-4 text-center shrink-0"></i><span class="sidebar-text">Ventas</span>
-                </a>
-                <a href="#clients" title="Clientes" class="flex items-center gap-3 px-2 py-2 rounded-lg text-sm font-medium sidebar-link sidebar-anchor">
-                    <i class="fa-solid fa-users-line w-4 text-center shrink-0"></i><span class="sidebar-text">Clientes</span>
-                </a>
-            </div>
-
             <!-- REPORTES -->
             <div>
                 <p class="px-2 mb-1 text-[11px] font-bold tracking-widest text-gray-400 uppercase sidebar-section-title">Reportes</p>
@@ -114,6 +101,18 @@
                     <i class="fa-solid fa-chart-pie w-4 text-center shrink-0"></i><span class="sidebar-text">Estadísticas</span>
                 </a>
             </div>
+
+            <!-- CONFIGURACION -->
+            <div>
+                <p class="px-2 mb-1 text-[11px] font-bold tracking-widest text-gray-400 uppercase sidebar-section-title">Configuracion</p>
+                <a href="#notifications" title="Notificaciones" class="flex items-center gap-3 px-2 py-2 rounded-lg text-sm font-medium sidebar-link sidebar-anchor">
+                    <i class="fa-solid fa-bell w-4 text-center shrink-0"></i><span class="sidebar-text">Notificaciones</span>
+                </a>
+                <a href="<?= url('settings') ?>" title="Configuración" class="flex items-center gap-3 px-2 py-2 rounded-lg text-sm font-medium sidebar-link <?= ($currentModule ?? '') === 'settings' ? 'nav-active' : '' ?>">
+                    <i class="fa-solid fa-gear w-4 text-center shrink-0"></i><span class="sidebar-text">Configuración</span>
+                </a>
+            </div>
+
         </nav>
 
         <?php $currentUser = $_SESSION['user'] ?? null; ?>
@@ -129,6 +128,16 @@
         </div>
     </aside>
 
+    <!-- Fondo oscuro para el drawer en móvil/tablet -->
+    <div id="sidebarBackdrop" class="sidebar-backdrop" aria-hidden="true"></div>
+
     <!-- ======================= CONTENIDO ======================= -->
-    <main class="flex-1 px-8 py-6 min-w-0 w-full">
+    <main class="flex-1 px-4 sm:px-6 lg:px-8 py-6 min-w-0 w-full">
+        <!-- Botón flotante (móvil/tablet): abre el sidebar -->
+        <button type="button" id="sidebarOpenBtn"
+                class="lg:hidden fixed top-3 right-3 z-50 w-10 h-10 rounded-xl bg-white border border-gray-200 shadow-lg shadow-gray-200/60 flex items-center justify-center text-orange-500 hover:bg-orange-50 transition-colors"
+                title="Abrir menú" aria-label="Abrir menú">
+            <i class="fa-solid fa-bars"></i>
+        </button>
+
         <?php if (file_exists(__DIR__ . '/breadcrumb.php')) require __DIR__ . '/breadcrumb.php'; ?>
