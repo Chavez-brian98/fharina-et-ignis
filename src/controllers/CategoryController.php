@@ -19,7 +19,7 @@ class CategoryController
         $title = 'Categorías';
         $currentModule = 'categories';
         $breadcrumbs = [
-            ['label' => 'Sistema', 'url' => '/'],
+            ['label' => 'Sistema', 'url' => url('dashboard')],
             ['label' => 'Categorías', 'url' => null],
         ];
 
@@ -31,7 +31,7 @@ class CategoryController
         $title = 'Nueva Categoría';
         $currentModule = 'categories';
         $breadcrumbs = [
-            ['label' => 'Sistema', 'url' => '/'],
+            ['label' => 'Sistema', 'url' => url('dashboard')],
             ['label' => 'Categorías', 'url' => url('categories')],
             ['label' => 'Nueva', 'url' => null],
         ];
@@ -79,7 +79,7 @@ class CategoryController
         $title = 'Editar Categoría';
         $currentModule = 'categories';
         $breadcrumbs = [
-            ['label' => 'Sistema', 'url' => '/'],
+            ['label' => 'Sistema', 'url' => url('dashboard')],
             ['label' => 'Categorías', 'url' => url('categories')],
             ['label' => 'Editar', 'url' => null],
         ];

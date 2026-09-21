@@ -19,7 +19,7 @@ class EmployeeController
         $title = 'Empleados';
         $currentModule = 'employees';
         $breadcrumbs = [
-            ['label' => 'Sistema', 'url' => '/'],
+            ['label' => 'Sistema', 'url' => url('dashboard')],
             ['label' => 'Empleados', 'url' => null],
         ];
 
@@ -32,7 +32,7 @@ class EmployeeController
         $title = 'Nuevo Empleado';
         $currentModule = 'employees';
         $breadcrumbs = [
-            ['label' => 'Sistema', 'url' => '/'],
+            ['label' => 'Sistema', 'url' => url('dashboard')],
             ['label' => 'Empleados', 'url' => url('employees')],
             ['label' => 'Nuevo', 'url' => null],
         ];
@@ -121,7 +121,7 @@ class EmployeeController
         $title = 'Editar Empleado';
         $currentModule = 'employees';
         $breadcrumbs = [
-            ['label' => 'Sistema', 'url' => '/'],
+            ['label' => 'Sistema', 'url' => url('dashboard')],
             ['label' => 'Empleados', 'url' => url('employees')],
             ['label' => 'Editar', 'url' => null],
         ];

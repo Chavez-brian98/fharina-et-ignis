@@ -19,7 +19,7 @@ class ClientController
         $title = 'Clientes';
         $currentModule = 'clients';
         $breadcrumbs = [
-            ['label' => 'Sistema', 'url' => '/'],
+            ['label' => 'Sistema', 'url' => url('dashboard')],
             ['label' => 'Clientes', 'url' => null],
         ];
 
@@ -31,7 +31,7 @@ class ClientController
         $title = 'Nuevo Cliente';
         $currentModule = 'clients';
         $breadcrumbs = [
-            ['label' => 'Sistema', 'url' => '/'],
+            ['label' => 'Sistema', 'url' => url('dashboard')],
             ['label' => 'Clientes', 'url' => url('clients')],
             ['label' => 'Nuevo', 'url' => null],
         ];
@@ -89,7 +89,7 @@ class ClientController
         $title = 'Editar Cliente';
         $currentModule = 'clients';
         $breadcrumbs = [
-            ['label' => 'Sistema', 'url' => '/'],
+            ['label' => 'Sistema', 'url' => url('dashboard')],
             ['label' => 'Clientes', 'url' => url('clients')],
             ['label' => 'Editar', 'url' => null],
         ];

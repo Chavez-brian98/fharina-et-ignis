@@ -25,6 +25,7 @@ require_once __DIR__ . '/../models/Setting.php';
 require_once __DIR__ . '/../models/Sale.php';
 require_once __DIR__ . '/../models/Client.php';
 require_once __DIR__ . '/../models/Employee.php';
+require_once __DIR__ . '/../models/ContactMessage.php';
 require_once __DIR__ . '/../controllers/CategoryController.php';
 require_once __DIR__ . '/../controllers/ProductController.php';
 require_once __DIR__ . '/../controllers/DashboardController.php';
@@ -33,6 +34,7 @@ require_once __DIR__ . '/../controllers/SettingsController.php';
 require_once __DIR__ . '/../controllers/PosController.php';
 require_once __DIR__ . '/../controllers/ClientController.php';
 require_once __DIR__ . '/../controllers/EmployeeController.php';
+require_once __DIR__ . '/../controllers/SiteController.php';
 
 $dotenv = Dotenv::createImmutable(__DIR__ . '/../');
 $dotenv->load();
@@ -132,11 +134,19 @@ function flash($key, $message = null)
 $url = isset($_GET['url']) ? rtrim($_GET['url'], '/') : '';
 $segments = $url !== '' ? explode('/', $url) : [];
 
-$controllerName = $segments[0] ?? 'dashboard';
+$controllerName = $segments[0] ?? 'home';
 $action = $segments[1] ?? 'index';
 $id = isset($segments[2]) ? (int) $segments[2] : null;
 
 $controllerMap = [
+    'home' => SiteController::class,
+    'nosotros' => SiteController::class,
+    'contacto' => SiteController::class,
+    'catalogo' => SiteController::class,
+    'carrito' => SiteController::class,
+    'producto' => SiteController::class,
+    'ingresar' => SiteController::class,
+    'registro' => SiteController::class,
     'auth' => AuthController::class,
     'dashboard' => DashboardController::class,
     'products' => ProductController::class,
@@ -149,9 +159,34 @@ $controllerMap = [
 
 $key = strtolower($controllerName);
 
+// Acciones del sitio público según la ruta (URLs en español → métodos del SiteController).
+$siteActions = [
+    'home' => 'index',
+    'nosotros' => 'about',
+    'contacto' => 'contact',
+    'catalogo' => 'catalog',
+    'carrito' => 'cart',
+    'producto' => 'product',
+    'ingresar' => 'login',
+    'registro' => 'register',
+];
+
+foreach ($siteActions as $route => $siteAction) {
+    if ($key === $route) {
+        if ($route === 'producto') {
+            $action = 'product';
+            $id = isset($segments[1]) ? (int) $segments[1] : null;
+        } elseif (!isset($segments[1])) {
+            $action = $siteAction;
+        }
+    }
+}
+
 // --- Autenticación -----------------------------------------------------------
-// Todo el app exige sesión iniciada; solo 'auth' (login/logout) es público.
-if (!isset($_SESSION['user']) && $key !== 'auth') {
+// El sitio público (inicio, nosotros, contacto, catálogo, carrito, producto)
+// no exige sesión; 'auth' (login/logout) tampoco. El resto exige iniciar sesión.
+$publicRoutes = ['auth', 'home', 'nosotros', 'contacto', 'catalogo', 'carrito', 'producto', 'ingresar', 'registro'];
+if (!isset($_SESSION['user']) && !in_array($key, $publicRoutes, true)) {
     header('Location: ' . url('auth/login'));
     exit;
 }

@@ -18,6 +18,7 @@ DROP TABLE IF EXISTS
     product_inventory_movements, ingredient_inventory_movements,
     production_waste, production_batches, recipe_ingredients, recetas, ingredientes,
     productos, categorias,
+    product_images,
     client_segment, client_segments, clients,
     sales_commissions, performance_reviews, attendances, shifts, empleados,
     roles, notificaciones, settings;
@@ -227,6 +228,19 @@ CREATE TABLE productos (
     CONSTRAINT fk_products_recipe FOREIGN KEY (recipe_id) REFERENCES recetas(id),
     INDEX idx_products_category (category_id),
     UNIQUE KEY idx_products_barcode (barcode)
+) ENGINE=InnoDB;
+
+-- ----------------------------------------------------------------------------
+-- 4b. GALERÍA DE FOTOS DE PRODUCTOS (depende de productos)
+-- ----------------------------------------------------------------------------
+CREATE TABLE product_images (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    product_id INT NOT NULL,
+    image_url VARCHAR(500) NOT NULL,
+    sort_order INT NOT NULL DEFAULT 0,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_product_images_product FOREIGN KEY (product_id) REFERENCES productos(id) ON DELETE CASCADE,
+    INDEX idx_product_images_product (product_id)
 ) ENGINE=InnoDB;
 
 -- ----------------------------------------------------------------------------
@@ -556,6 +570,18 @@ CREATE TABLE settings (
 ) ENGINE=InnoDB;
 
 -- ----------------------------------------------------------------------------
+-- 14. MENSAJES DE CONTACTO DEL SITIO PÚBLICO
+-- ----------------------------------------------------------------------------
+CREATE TABLE contact_messages (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(150) NOT NULL,
+    email VARCHAR(150) NOT NULL,
+    phone VARCHAR(30) NULL,
+    message TEXT NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+
+-- ----------------------------------------------------------------------------
 -- SEED DATA (datos de ejemplo)
 -- ----------------------------------------------------------------------------
 INSERT INTO roles (name, description) VALUES
@@ -590,10 +616,21 @@ INSERT INTO categorias (name, description, display_order) VALUES
 ('Repostería', 'Pasteles y postres', 3);
 
 INSERT INTO productos (category_id, recipe_id, name, description, sale_price, production_cost, stock, min_stock, image_url, barcode) VALUES
-(1, 2, 'Pan Dulce Clásico', 'Pan esponjoso con azúcar y canela', 1.50, 0.60, 150, 20, NULL, '7701234567890'),
-(1, 2, 'Concha', 'Pan dulce con cobertura crujiente', 2.00, 0.80, 10, 25, NULL, NULL),
-(2, 1, 'Pan de Queso', 'Pan salado relleno de queso', 2.50, 1.00, 80, 15, NULL, NULL),
-(3, NULL, 'Pastel de Chocolate', 'Pastel de chocolate con ganache', 35.00, 18.00, 3, 5, NULL, NULL);
+(1, 2, 'Pan Dulce Clásico', 'Pan esponjoso y suave con un toque de azúcar y canela, ideal para acompañar un café o un chocolate caliente', 1.50, 0.60, 150, 20, NULL, '7701234567890'),
+(1, 2, 'Concha', 'Nuestro clásico pan dulce con una cobertura crujiente de azúcar, horneado fresco cada mañana', 2.00, 0.80, 10, 25, NULL, NULL),
+(2, 1, 'Pan de Queso', 'Pan salado recién horneado con un delicioso relleno de queso fundido por dentro', 2.50, 1.00, 80, 15, NULL, NULL),
+(3, NULL, 'Pastel de Chocolate', 'Pastel de chocolate con ganache sedoso y capas esponjosas: el favorito para tus celebraciones', 35.00, 18.00, 3, 5, NULL, NULL);
+
+-- Galería de fotos de ejemplo (URLs mientras no haya subida propia)
+INSERT INTO product_images (product_id, image_url, sort_order) VALUES
+(1, 'https://images.unsplash.com/photo-1555507036-ab1f4038808a?auto=format&fit=crop&w=1200&q=80', 1),
+(1, 'https://images.unsplash.com/photo-1587248720327-8eb72564be1e?auto=format&fit=crop&w=1200&q=80', 2),
+(2, 'https://images.unsplash.com/photo-1509365465985-25d11c17e812?auto=format&fit=crop&w=1200&q=80', 1),
+(2, 'https://images.unsplash.com/photo-1483695028939-5bb13f8648b0?auto=format&fit=crop&w=1200&q=80', 2),
+(3, 'https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=1200&q=80', 1),
+(3, 'https://images.unsplash.com/photo-1536210871043-9c8279f166b4?auto=format&fit=crop&w=1200&q=80', 2),
+(4, 'https://images.unsplash.com/photo-1488477181946-6428a0291777?auto=format&fit=crop&w=1200&q=80', 1),
+(4, 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?auto=format&fit=crop&w=1200&q=80', 2);
 
 INSERT INTO client_segments (name, description) VALUES
 ('Frecuentes', 'Clientes que compran al menos una vez por semana'),

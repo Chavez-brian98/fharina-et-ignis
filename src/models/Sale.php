@@ -16,7 +16,7 @@ class Sale
      */
     public function getCatalog()
     {
-        $query = "SELECT p.id, p.name, p.sale_price, p.stock, p.image_url, p.barcode,
+        $query = "SELECT p.id, p.name, p.description, p.sale_price, p.stock, p.image_url, p.barcode,
                          p.category_id, c.name AS category_name,
                          (SELECT MAX(pr.discount_percentage)
                             FROM promociones pr

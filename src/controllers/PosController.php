@@ -30,7 +30,7 @@ class PosController
         $title = 'Punto de Venta';
         $currentModule = 'pos';
         $breadcrumbs = [
-            ['label' => 'Sistema', 'url' => '/'],
+            ['label' => 'Sistema', 'url' => url('dashboard')],
             ['label' => 'Punto de Venta', 'url' => null],
         ];
 
