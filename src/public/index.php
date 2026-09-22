@@ -4,205 +4,51 @@ error_reporting(E_ALL);
 ini_set('display_errors', 1);
 session_start();
 
-use Dotenv\Dotenv;
-
-/**
- * Escapa un valor para uso seguro en HTML.
- */
-function esc($value)
-{
-    return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
-}
-
-require_once __DIR__ . '/../config/Database.php';
 require_once __DIR__ . '/../vendor/autoload.php';
 
-require_once __DIR__ . '/../models/Category.php';
-require_once __DIR__ . '/../models/Product.php';
-require_once __DIR__ . '/../models/Dashboard.php';
-require_once __DIR__ . '/../models/User.php';
-require_once __DIR__ . '/../models/Setting.php';
-require_once __DIR__ . '/../models/Sale.php';
-require_once __DIR__ . '/../models/Client.php';
-require_once __DIR__ . '/../models/Employee.php';
-require_once __DIR__ . '/../models/ContactMessage.php';
-require_once __DIR__ . '/../controllers/CategoryController.php';
-require_once __DIR__ . '/../controllers/ProductController.php';
-require_once __DIR__ . '/../controllers/DashboardController.php';
-require_once __DIR__ . '/../controllers/AuthController.php';
-require_once __DIR__ . '/../controllers/SettingsController.php';
-require_once __DIR__ . '/../controllers/PosController.php';
-require_once __DIR__ . '/../controllers/ClientController.php';
-require_once __DIR__ . '/../controllers/EmployeeController.php';
-require_once __DIR__ . '/../controllers/SiteController.php';
-
-$dotenv = Dotenv::createImmutable(__DIR__ . '/../');
-$dotenv->load();
-
-$database = new Database();
-$db = $database->getConnection();
-
-// Configuración global de la app (tabla settings), disponible vía setting().
-$__settings = (new Setting($db))->getAll();
-$GLOBALS['__settings'] = $__settings;
-
-/**
- * Devuelve el valor de una configuración del sistema.
- */
-function setting($key, $default = null)
-{
-    $settings = $GLOBALS['__settings'] ?? [];
-
-    return isset($settings[$key]) && $settings[$key] !== '' ? $settings[$key] : $default;
-}
-
-/**
- * Sube una imagen desde el formulario a public/uploads/ y devuelve su URL
- * (/uploads/nombre.ext). Devuelve null si no se envió archivo y false si falló
- * (en ese caso ya se aseguró de registrar el flash de error).
- */
-function upload_image($field)
-{
-    if (empty($_FILES[$field]) || $_FILES[$field]['error'] === UPLOAD_ERR_NO_FILE) {
-        return null;
-    }
-
-    $file = $_FILES[$field];
-
-    if ($file['error'] !== UPLOAD_ERR_OK) {
-        flash('error', 'Hubo un problema al subir la imagen.');
-        return false;
-    }
-
-    $allowedMimes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
-    $info = file_exists($file['tmp_name']) ? @getimagesize($file['tmp_name']) : false;
-
-    if ($info === false || !in_array($info['mime'], $allowedMimes, true)) {
-        flash('error', 'Formato de imagen no válido. Usa JPG, PNG, WEBP o GIF.');
-        return false;
-    }
-
-    if ($file['size'] > 2 * 1024 * 1024) {
-        flash('error', 'La imagen supera el tamaño máximo de 2 MB.');
-        return false;
-    }
-
-    $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
-    $uploadDir = __DIR__ . '/uploads/';
-
-    if (!is_dir($uploadDir)) {
-        mkdir($uploadDir, 0775, true);
-    }
-
-    $filename = $field . '_' . bin2hex(random_bytes(8)) . '.' . $ext;
-    $dest = $uploadDir . $filename;
-
-    if (!move_uploaded_file($file['tmp_name'], $dest)) {
-        flash('error', 'No se pudo guardar la imagen. Revisa los permisos de la carpeta uploads.');
-        return false;
-    }
-
-    return '/uploads/' . $filename;
-}
-
-/**
- * Genera una URL limpia a partir de una ruta interna: /products, /categories/edit/3
- */
-function url($path = '')
-{
-    return '/' . ltrim($path, '/');
-}
-
-/**
- * Devuelve y limpia un mensaje flash (guardado en sesión).
- */
-function flash($key, $message = null)
-{
-    if ($message !== null) {
-        $_SESSION[$key] = $message;
-        return null;
-    }
-    if (isset($_SESSION[$key])) {
-        $value = $_SESSION[$key];
-        unset($_SESSION[$key]);
-        return $value;
-    }
-    return null;
-}
-
-// --- Routing ----------------------------------------------------------------
-$url = isset($_GET['url']) ? rtrim($_GET['url'], '/') : '';
-$segments = $url !== '' ? explode('/', $url) : [];
-
-$controllerName = $segments[0] ?? 'home';
-$action = $segments[1] ?? 'index';
-$id = isset($segments[2]) ? (int) $segments[2] : null;
-
-$controllerMap = [
-    'home' => SiteController::class,
-    'nosotros' => SiteController::class,
-    'contacto' => SiteController::class,
-    'catalogo' => SiteController::class,
-    'carrito' => SiteController::class,
-    'producto' => SiteController::class,
-    'ingresar' => SiteController::class,
-    'registro' => SiteController::class,
-    'auth' => AuthController::class,
-    'dashboard' => DashboardController::class,
-    'products' => ProductController::class,
-    'categories' => CategoryController::class,
-    'settings' => SettingsController::class,
-    'pos' => PosController::class,
-    'clients' => ClientController::class,
-    'employees' => EmployeeController::class,
-];
-
-$key = strtolower($controllerName);
-
-// Acciones del sitio público según la ruta (URLs en español → métodos del SiteController).
-$siteActions = [
-    'home' => 'index',
-    'nosotros' => 'about',
-    'contacto' => 'contact',
-    'catalogo' => 'catalog',
-    'carrito' => 'cart',
-    'producto' => 'product',
-    'ingresar' => 'login',
-    'registro' => 'register',
-];
-
-foreach ($siteActions as $route => $siteAction) {
-    if ($key === $route) {
-        if ($route === 'producto') {
-            $action = 'product';
-            $id = isset($segments[1]) ? (int) $segments[1] : null;
-        } elseif (!isset($segments[1])) {
-            $action = $siteAction;
+// Carga automática simple de la app (sin PSR-4): config, models, controllers y core.
+spl_autoload_register(function ($class) {
+    foreach ([__DIR__ . '/../config', __DIR__ . '/../models', __DIR__ . '/../controllers', __DIR__ . '/../core'] as $dir) {
+        $file = $dir . '/' . $class . '.php';
+        if (is_file($file)) {
+            require_once $file;
+            return;
         }
     }
-}
+});
 
-// --- Autenticación -----------------------------------------------------------
-// El sitio público (inicio, nosotros, contacto, catálogo, carrito, producto)
-// no exige sesión; 'auth' (login/logout) tampoco. El resto exige iniciar sesión.
-$publicRoutes = ['auth', 'home', 'nosotros', 'contacto', 'catalogo', 'carrito', 'producto', 'ingresar', 'registro'];
-if (!isset($_SESSION['user']) && !in_array($key, $publicRoutes, true)) {
+$dotenv = Dotenv\Dotenv::createImmutable(__DIR__ . '/../');
+$dotenv->load();
+
+require_once __DIR__ . '/../config/helpers.php';
+
+$db = (new Database())->getConnection();
+
+// Configuración global de la app (tabla settings), disponible vía setting().
+$GLOBALS['__settings'] = (new Setting($db))->getAll();
+
+// --- Enrutado (definición en routes/web.php, resolución en core/Router.php) ---
+$router = new Router(require __DIR__ . '/../routes/web.php');
+$route = $router->resolve(isset($_GET['url']) ? trim($_GET['url'], '/') : '');
+
+// Las rutas no públicas exigen sesión.
+if (!$route['public'] && empty($_SESSION['user'])) {
     header('Location: ' . url('auth/login'));
     exit;
 }
 
-if (!isset($controllerMap[$key])) {
+if ($route['controller'] === null) {
     http_response_code(404);
     echo '<h1>404 - Página no encontrada</h1>';
     exit;
 }
 
-$controller = new $controllerMap[$key]($db);
+$controller = new $route['controller']($db);
 
-if (!method_exists($controller, $action)) {
+if (!method_exists($controller, $route['action'])) {
     http_response_code(404);
     echo '<h1>404 - Acción no encontrada</h1>';
     exit;
 }
 
-$controller->{$action}($id);
+$controller->{$route['action']}($route['id']);

@@ -25,3 +25,6 @@ tmp/
 
 /doc/database.md
 /doc/documentacion.md
+
+# certificados SSL generados localmente (nunca commitear la clave privada)
+/certs/

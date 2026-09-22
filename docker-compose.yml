@@ -14,11 +14,13 @@ services:
   web:
     image: nginx:alpine
     ports:
-      - "8080:80"
+      - "80:80"
+      - "443:443" #puerto para el certificado SSL de la VM
     volumes:
       - ./src:/var/www/html
       # Montamos el archivo de configuración de Nginx que creamos en el paso 2
       - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf
+      - ./certs:/etc/nginx/ssl #certificado para la maquina virtual
     depends_on:
       - app
 
