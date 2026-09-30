@@ -111,6 +111,7 @@
             "autoload": {
                 "files": [
                     "src/functions.php"
+                ],
                 "psr-4": {
                     "Mpdf\\": "src/"
                 }
