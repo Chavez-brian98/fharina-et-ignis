@@ -14,7 +14,7 @@ services:
   web:
     image: nginx:alpine
     ports:
-      - "80:80"
+      - "8080:80"
       - "443:443" #puerto para el certificado SSL de la VM
     volumes:
       - ./src:/var/www/html
