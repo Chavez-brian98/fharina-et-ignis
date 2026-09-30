@@ -616,10 +616,10 @@ INSERT INTO categorias (name, description, display_order) VALUES
 ('Repostería', 'Pasteles y postres', 3);
 
 INSERT INTO productos (category_id, recipe_id, name, description, sale_price, production_cost, stock, min_stock, image_url, barcode) VALUES
-(1, 2, 'Pan Dulce Clásico', 'Pan esponjoso y suave con un toque de azúcar y canela, ideal para acompañar un café o un chocolate caliente', 1.50, 0.60, 150, 20, NULL, '7701234567890'),
-(1, 2, 'Concha', 'Nuestro clásico pan dulce con una cobertura crujiente de azúcar, horneado fresco cada mañana', 2.00, 0.80, 10, 25, NULL, NULL),
-(2, 1, 'Pan de Queso', 'Pan salado recién horneado con un delicioso relleno de queso fundido por dentro', 2.50, 1.00, 80, 15, NULL, NULL),
-(3, NULL, 'Pastel de Chocolate', 'Pastel de chocolate con ganache sedoso y capas esponjosas: el favorito para tus celebraciones', 35.00, 18.00, 3, 5, NULL, NULL);
+(1, 2, 'Pan Dulce Clásico', 'Pan esponjoso y suave con un toque de azúcar y canela, ideal para acompañar un café o un chocolate caliente', 1.50, 0.60, 150, 20, 'https://images.unsplash.com/photo-1555507036-ab1f4038808a?auto=format&fit=crop&w=1200&q=80', '7701234567890'),
+(1, 2, 'Concha', 'Nuestro clásico pan dulce con una cobertura crujiente de azúcar, horneado fresco cada mañana', 2.00, 0.80, 10, 25, 'https://images.unsplash.com/photo-1509365465985-25d11c17e812?auto=format&fit=crop&w=1200&q=80', NULL),
+(2, 1, 'Pan de Queso', 'Pan salado recién horneado con un delicioso relleno de queso fundido por dentro', 2.50, 1.00, 80, 15, 'https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=1200&q=80', NULL),
+(3, NULL, 'Pastel de Chocolate', 'Pastel de chocolate con ganache sedoso y capas esponjosas: el favorito para tus celebraciones', 35.00, 18.00, 3, 5, 'https://images.unsplash.com/photo-1488477181946-6428a0291777?auto=format&fit=crop&w=1200&q=80', NULL);
 
 -- Galería de fotos de ejemplo (URLs mientras no haya subida propia)
 INSERT INTO product_images (product_id, image_url, sort_order) VALUES
@@ -628,7 +628,7 @@ INSERT INTO product_images (product_id, image_url, sort_order) VALUES
 (2, 'https://images.unsplash.com/photo-1509365465985-25d11c17e812?auto=format&fit=crop&w=1200&q=80', 1),
 (2, 'https://images.unsplash.com/photo-1483695028939-5bb13f8648b0?auto=format&fit=crop&w=1200&q=80', 2),
 (3, 'https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=1200&q=80', 1),
-(3, 'https://images.unsplash.com/photo-1536210871043-9c8279f166b4?auto=format&fit=crop&w=1200&q=80', 2),
+(3, 'https://images.unsplash.com/photo-1549931319-a545dcf3bc73?auto=format&fit=crop&w=1200&q=80', 2),
 (4, 'https://images.unsplash.com/photo-1488477181946-6428a0291777?auto=format&fit=crop&w=1200&q=80', 1),
 (4, 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?auto=format&fit=crop&w=1200&q=80', 2);
 
@@ -763,6 +763,52 @@ INSERT INTO sale_details (sale_id, product_id, quantity, unit_price, discount, s
 (40, 2, 44, 2.00, 0, 88.00),
 (41, 1, 55, 1.50, 0, 82.50),
 (42, 4, 4, 35.00, 0, 140.00);
+
+-- Pagos de las ventas demo. Las ventas en efectivo incluyen el monto recibido
+-- para que el ticket muestre un cambio realista (vuelto por dar billetes).
+INSERT INTO sale_payments (sale_id, payment_method, amount) VALUES
+(1, 'efectivo', 20.00),
+(2, 'tarjeta', 18.00),
+(3, 'efectivo', 25.00),
+(4, 'efectivo', 30.00),
+(5, 'tarjeta', 28.00),
+(6, 'efectivo', 50.00),
+(7, 'efectivo', 24.00),
+(8, 'efectivo', 50.00),
+(9, 'efectivo', 40.00),
+(10, 'efectivo', 30.00),
+(11, 'efectivo', 50.00),
+(12, 'efectivo', 50.00),
+(13, 'efectivo', 50.00),
+(14, 'efectivo', 50.00),
+(15, 'tarjeta', 35.00),
+(16, 'efectivo', 50.00),
+(17, 'efectivo', 50.00),
+(18, 'efectivo', 50.00),
+(19, 'efectivo', 50.00),
+(20, 'efectivo', 50.00),
+(21, 'efectivo', 50.00),
+(22, 'efectivo', 50.00),
+(23, 'efectivo', 50.00),
+(24, 'efectivo', 100.00),
+(25, 'efectivo', 50.00),
+(26, 'efectivo', 100.00),
+(27, 'efectivo', 100.00),
+(28, 'efectivo', 100.00),
+(29, 'tarjeta', 70.00),
+(30, 'efectivo', 100.00),
+(31, 'efectivo', 100.00),
+(32, 'efectivo', 100.00),
+(33, 'efectivo', 100.00),
+(34, 'efectivo', 100.00),
+(35, 'efectivo', 100.00),
+(36, 'tarjeta', 105.00),
+(37, 'efectivo', 100.00),
+(38, 'efectivo', 100.00),
+(39, 'efectivo', 100.00),
+(40, 'efectivo', 100.00),
+(41, 'efectivo', 100.00),
+(42, 'transferencia', 140.00);
 
 INSERT INTO pedidos (id, client_id, recorded_by_employee_id, order_date, delivery_date, state, rejection_reason, total, paid_amount, remaining_balance, notes) VALUES
 (1, 1, 3, DATE_SUB(CURDATE(), INTERVAL 3 DAY), DATE_ADD(CURDATE(), INTERVAL 2 DAY), 'pendiente', NULL, 350.00, 100.00, 250.00, 'Pastel de bodas para 50 personas'),

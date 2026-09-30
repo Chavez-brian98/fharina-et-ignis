@@ -3,8 +3,11 @@ document.addEventListener('DOMContentLoaded', function () {
     // ==========================================================================
     // TOASTS Toastify (mensajes flash tras crear/editar/desactivar/eliminar)
     // ==========================================================================
-    const flashToast = document.getElementById('flashToast');
-    if (flashToast && typeof Toastify !== 'undefined') {
+    // Puede haber mas de un marcador (p. ej. success + error pendientes a la vez)
+    document.querySelectorAll('.flashToast').forEach(function (flashToast, i) {
+        if (typeof Toastify === 'undefined') {
+            return;
+        }
         const message = flashToast.getAttribute('data-message') || '';
         const isError = flashToast.getAttribute('data-type') === 'error';
         Toastify({
@@ -18,15 +21,15 @@ document.addEventListener('DOMContentLoaded', function () {
                 background: isError ? '#dc2626' : '#16a34a',
                 borderRadius: '12px',
                 boxShadow: isError
-                    ? '0 10px 30px -6px rgba(220, 38, 38, 0.4)'
+                    ? '0 10px 30px -6px rgba(220, 38, 58, 0.4)'
                     : '0 10px 30px -6px rgba(22, 163, 74, 0.4)',
                 fontFamily: 'inherit',
                 fontSize: '14px',
                 fontWeight: '600'
             },
-            offset: { x: 0, y: 20 }
+            offset: { x: 0, y: 20 + (i * 60) }
         }).showToast();
-    }
+    });
 
     // ==========================================================================
     // SIDEBAR RESPONSIVE
