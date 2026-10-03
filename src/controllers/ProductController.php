@@ -23,7 +23,7 @@ class ProductController
         $title = 'Productos';
         $currentModule = 'products';
         $breadcrumbs = [
-            ['label' => 'Sistema', 'url' => '/'],
+            ['label' => 'Sistema', 'url' => url('dashboard')],
             ['label' => 'Productos', 'url' => null],
         ];
 
@@ -36,7 +36,7 @@ class ProductController
         $title = 'Nuevo Producto';
         $currentModule = 'products';
         $breadcrumbs = [
-            ['label' => 'Sistema', 'url' => '/'],
+            ['label' => 'Sistema', 'url' => url('dashboard')],
             ['label' => 'Productos', 'url' => url('products')],
             ['label' => 'Nuevo', 'url' => null],
         ];
@@ -106,7 +106,7 @@ class ProductController
         $title = 'Editar Producto';
         $currentModule = 'products';
         $breadcrumbs = [
-            ['label' => 'Sistema', 'url' => '/'],
+            ['label' => 'Sistema', 'url' => url('dashboard')],
             ['label' => 'Productos', 'url' => url('products')],
             ['label' => 'Editar', 'url' => null],
         ];

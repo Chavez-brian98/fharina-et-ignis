@@ -4,17 +4,31 @@
 
     <!-- ========================= CATÁLOGO ========================= -->
     <section class="xl:flex-1 min-w-0 w-full">
+        <!-- Código de barras: entrada manual + escáner -->
+        <div class="rounded-2xl bg-white border border-gray-100 shadow-lg shadow-gray-200/50 p-3.5 mb-3">
+            <label for="posBarcode" class="form-label mb-1.5">
+                <i class="fa-solid fa-barcode text-orange-500 mr-1.5"></i>Código de barras
+            </label>
+            <div class="flex flex-col sm:flex-row gap-2.5">
+                <div class="relative flex-1">
+                    <input id="posBarcode" type="text" autocomplete="off"
+                           placeholder="Escribe o pega el código y pulsa Enter"
+                           class="form-input !pl-4">
+                </div>
+                <button type="button" class="btn-scan-barcode shrink-0
+                        rounded-xl px-4 py-2.5 text-sm font-semibold bg-orange-500 text-white
+                        hover:bg-orange-600 transition-colors shadow-sm">
+                    <i class="fa-solid fa-camera-retro mr-1.5" aria-hidden="true"></i>Escanear
+                </button>
+            </div>
+        </div>
+
         <div class="flex flex-col sm:flex-row gap-3 mb-4">
             <div class="relative flex-1">
                 <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm pointer-events-none"></i>
                 <input id="posSearch" type="text" placeholder="Buscar producto por nombre o categoría..."
                        class="form-input !pl-10" autocomplete="off">
             </div>
-            <button type="button" class="btn-scan-barcode
-                    rounded-xl px-4 py-2.5 text-sm font-semibold bg-white border border-gray-200 text-gray-600 hover:bg-orange-50 hover:text-orange-500 transition-colors shadow-sm shrink-0"
-                    title="Escanear código de barras">
-                <i class="fa-solid fa-barcode" aria-hidden="true"></i>
-            </button>
             <button type="button" id="posClearCart"
                     class="rounded-xl px-4 py-2.5 text-sm font-semibold bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 hover:text-red-500 transition-colors shadow-sm shrink-0">
                 <i class="fa-solid fa-trash-can mr-1.5"></i>Limpiar
@@ -30,7 +44,7 @@
             <?php endforeach; ?>
         </div>
 
-        <div id="posGrid" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+        <div id="posGrid" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
             <?php foreach ($catalog as $p): ?>
                 <?php
                     $out = (int) $p['stock'] <= 0;
@@ -45,7 +59,7 @@
                      data-discount="<?= (float) $p['discount_percent'] ?>"
                      data-category="<?= (int) $p['category_id'] ?>"
                      data-barcode="<?= esc($p['barcode'] ?? '') ?>"
-                     data-search="<?= esc(strtolower($p['name'] . ' ' . $p['category_name'])) ?>">
+                     data-search="<?= esc(strtolower(trim($p['name'] . ' ' . $p['category_name'] . ' ' . ($p['barcode'] ?? '')))) ?>">
                     <div class="relative h-28 bg-gradient-to-br from-orange-50 to-gray-50 flex items-center justify-center">
                         <?php if (!empty($p['image_url'])): ?>
                             <img src="<?= esc($p['image_url']) ?>" alt="<?= esc($p['name']) ?>" class="w-full h-full object-cover">
@@ -353,7 +367,9 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     /// --- Código de barras ----------------------------------------------------
-    window.onBarcodeDetected = function (code) {
+    /// Busca por código y lo agrega al carrito. Lo usan tanto el escáner
+    /// (window.onBarcodeDetected) como la entrada manual desde #posSearch.
+    function addByBarcode(code) {
         code = String(code || '').trim();
         if (!code) return;
 
@@ -366,14 +382,33 @@ document.addEventListener('DOMContentLoaded', function () {
             Swal.fire({ title: 'No se encontró', text: 'No hay un producto activo con el código "' + code + '".', icon: 'warning', confirmButtonColor: '#f97316', confirmButtonText: 'Entendido' });
             return;
         }
-        if (found.classList.contains('opacity-50')) return;
+        if (found.classList.contains('opacity-50')) {
+            Swal.fire({ title: 'Sin stock', text: found.getAttribute('data-name') + ' no tiene existencias disponibles.', icon: 'warning', confirmButtonColor: '#f97316', confirmButtonText: 'Entendido' });
+            return;
+        }
 
         addToCart(found.getAttribute('data-id'));
         if (cart[found.getAttribute('data-id')]) {
             const name = found.getAttribute('data-name');
             Swal.fire({ title: 'Agregado', text: name + ' añadido al carrito.', icon: 'success', timer: 900, position: 'top-end', showConfirmButton: false, toast: true });
         }
+    }
+
+    window.onBarcodeDetected = function (code) {
+        addByBarcode(code);
     };
+
+    // Entrada manual: escribir/pegar el código en el campo dedicado y pulsar Enter.
+    const posBarcode = document.getElementById('posBarcode');
+    posBarcode.addEventListener('keydown', function (e) {
+        if (e.key !== 'Enter') return;
+        e.preventDefault();
+        const code = posBarcode.value.trim();
+        if (!code) return;
+        addByBarcode(code);
+        posBarcode.value = '';
+        posBarcode.focus();
+    });
 
     // --- Eventos carrito -----------------------------------------------------
     document.getElementById('posCartItems').addEventListener('click', function (e) {

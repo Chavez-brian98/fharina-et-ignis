@@ -30,7 +30,7 @@ class PosController
         $title = 'Punto de Venta';
         $currentModule = 'pos';
         $breadcrumbs = [
-            ['label' => 'Sistema', 'url' => '/'],
+            ['label' => 'Sistema', 'url' => url('dashboard')],
             ['label' => 'Punto de Venta', 'url' => null],
         ];
 
@@ -83,7 +83,8 @@ class PosController
 
         try {
             $taxRate = (float) setting('tax_rate', 0);
-            $saleId = $this->saleModel->createSale($items, $payments, $taxRate);
+            $employeeId = $_SESSION['user']['id'] ?? null;
+            $saleId = $this->saleModel->createSale($items, $payments, $taxRate, $employeeId);
         } catch (Exception $e) {
             flash('error', $e->getMessage());
             header('Location: ' . url('pos'));
@@ -104,28 +105,29 @@ class PosController
             exit;
         }
 
-        $business = [
-            'name' => setting('business_name', 'Panadería'),
-            'address' => setting('address', ''),
-            'phone' => setting('phone', ''),
-            'currency' => setting('currency', '$'),
-            'tax_rate' => (float) setting('tax_rate', 0),
-            'ticket_footer' => setting('ticket_footer', '¡Gracias por su compra!'),
-        ];
+        $business = $this->getTicketBusiness();
 
         require_once __DIR__ . '/../vendor/autoload.php';
 
+        $html = $this->renderTicketHtml($sale, $business);
+
+        // Volcado opcional del HTML para inspeccionar el ticket sin abrir el PDF.
+        if (getenv('TICKET_DEBUG_HTML')) {
+            file_put_contents('/tmp/ticket_debug.html', $html);
+        }
+
+        // Papel térmico: 80 mm de ancho, largo variable según la cantidad de
+        // líneas. Courier da la tipografía monoespaciada de una registradora.
         $mpdf = new \Mpdf\Mpdf([
-            'format' => [72, 297],
-            'margin_left' => 4,
-            'margin_right' => 4,
-            'margin_top' => 6,
-            'margin_bottom' => 4,
-            'default_font' => 'dejavusans',
+            'format' => [80, 297],
+            'margin_left' => 2,
+            'margin_right' => 2,
+            'margin_top' => 3,
+            'margin_bottom' => 3,
+            'default_font' => 'courier',
+            'default_font_size' => 7,
             'tempDir' => sys_get_temp_dir() . '/mpdf-tickets',
         ]);
-
-        $html = $this->renderTicketHtml($sale, $business);
 
         $mpdf->WriteHTML($html);
 
@@ -133,96 +135,285 @@ class PosController
         exit;
     }
 
+    /**
+     * Datos fiscales y de cabecera que imprime el ticket. Todos son opcionales:
+     * si no están configurados en /settings la línea simplemente se omite.
+     */
+    private function getTicketBusiness()
+    {
+        $taxRate = (float) setting('tax_rate', 0);
+
+        return [
+            'name' => setting('business_name', 'Panadería'),
+            'company_name' => setting('company_name', ''),
+            'tax_id' => setting('tax_id', ''),
+            'tax_regime' => setting('tax_regime', ''),
+            'activity' => setting('commercial_activity', ''),
+            'address' => setting('address', ''),
+            'phone' => setting('phone', ''),
+            'currency' => setting('currency', '$'),
+            'tax_rate' => $taxRate,
+            'tax_label' => $taxRate > 0 ? number_format($taxRate, 2) . '%' : 'EXENTO',
+            'terminal_id' => setting('terminal_id', '01'),
+            'cashier_prefix' => setting('cashier_prefix', 'CAJ'),
+            'ticket_footer' => setting('ticket_footer', '¡Gracias por su compra!'),
+        ];
+    }
+
     private function renderTicketHtml($sale, $business)
     {
         $cur = $business['currency'];
-        $payLabels = ['efectivo' => 'Efectivo', 'tarjeta' => 'Tarjeta', 'transferencia' => 'Transferencia', 'mixto' => 'Mixto'];
+        $payLabels = [
+            'efectivo' => 'EFECTIVO',
+            'tarjeta' => 'TARJETA',
+            'transferencia' => 'TRANSFERENCIA',
+            'mixto' => 'MIXTO',
+        ];
 
-        $lines = '';
-        $items = $sale['details'];
-        foreach ($items as $it) {
-            $name = $this->ticketShorten($it['name'], 22);
-            $lines .= '<tr>'
-                . '<td style="font-size:9px;line-height:1.5;">' . $this->e($name) . '</td>'
-                . '<td style="font-size:9px;text-align:right;white-space:nowrap;line-height:1.5;">' . (int) $it['quantity'] . ' x ' . number_format((float) $it['unit_price'], 2) . '</td>'
-                . '</tr>'
-                . '<tr>'
-                . '<td></td>'
-                . '<td style="font-size:9px;text-align:right;white-space:nowrap;line-height:1.5;color:#333;">= ' . $cur . number_format((float) $it['subtotal'], 2) . '</td>'
-                . '</tr>';
+        $receipt = str_pad((int) $sale['id'], 6, '0', STR_PAD_LEFT);
+        $dt = strtotime($sale['sale_date']);
+        $cashier = $this->ticketCashier($sale, $business);
+
+        // --- Encabezado ------------------------------------------------------
+        $head = '<div class="c name">' . $this->e(mb_strtoupper($business['name'], 'UTF-8')) . '</div>'
+            . '<div class="c s7 b t">TICKET DE VENTA</div>';
+
+        $fiscal = [];
+        if ($business['company_name']) {
+            $fiscal[] = $business['company_name'];
+        }
+        if ($business['tax_id']) {
+            $fiscal[] = 'RUC/NIT: ' . $business['tax_id'];
+        }
+        if ($business['tax_regime']) {
+            $fiscal[] = $business['tax_regime'];
+        }
+        if ($business['activity']) {
+            $fiscal[] = $business['activity'];
+        }
+        $fiscal[] = 'IVA: ' . $business['tax_label'];
+        if ($business['address']) {
+            $fiscal[] = $business['address'];
+        }
+        if ($business['phone']) {
+            $fiscal[] = 'TEL: ' . $business['phone'];
+        }
+        foreach ($fiscal as $line) {
+            $head .= '<div class="c s7">' . $this->e($line) . '</div>';
         }
 
-        $payRows = '';
+        // --- Datos de la transaccion ---------------------------------------
+        $info = '<table class="kv">'
+            . $this->row('RECIBO N.', $receipt)
+            . $this->row('CAJERO', $cashier)
+            . $this->row('SUCURSAL', $this->settingOr('Principal', 'ticket_branch', 'Principal'))
+            . $this->row('TERMINAL', $this->settingOr($business['terminal_id'], 'terminal_id', '01'))
+            . $this->row('FECHA', date('d/m/Y', $dt))
+            . $this->row('HORA', date('H:i:s', $dt))
+            . $this->row('N. TRANSACCION', str_pad((int) $sale['id'] . date('Ymd', $dt), 15, '0', STR_PAD_LEFT))
+            . $this->row('DOCUMENTO', 'TICKET VENTA')
+            . $this->row('ESTADO', 'COMPLETADA')
+            . '</table>';
+
+        // --- Detalle de productos -------------------------------------------
+        $rows = '';
+        foreach ($sale['details'] as $it) {
+            $qty = (int) $it['quantity'];
+            $name = mb_strtoupper((string) $it['name'], 'UTF-8');
+
+            $rows .= '<tr>'
+                . '<td class="c">' . $qty . '</td>'
+                . '<td>' . $this->e($this->padName($name, 22)) . '</td>'
+                . '<td class="r">' . $this->e($this->money($cur, (float) $it['unit_price'])) . '</td>'
+                . '<td class="r b">' . $this->e($this->money($cur, (float) $it['subtotal'])) . '</td>'
+                . '</tr>';
+
+            // El descuento vive en la fila de detalle (discount es negativo).
+            if ((float) $it['discount'] < 0) {
+                $rows .= '<tr>'
+                    . '<td></td><td class="s7">DESCUENTO</td>'
+                    . '<td></td>'
+                    . '<td class="r s7">-' . $this->e($this->money($cur, abs((float) $it['discount']))) . '</td>'
+                    . '</tr>';
+            }
+        }
+
+        $items = '<table class="it">'
+            . '<colgroup><col style="width:10%"><col style="width:40%">'
+            . '<col style="width:25%"><col style="width:25%"></colgroup>'
+            . '<tr class="hd">'
+            . '<td class="c">CANT</td><td>DESCRIPCION</td>'
+            . '<td class="r">P.UNIT</td><td class="r">IMPORTE</td>'
+            . '</tr>'
+            . '<tr class="hrule"><td colspan="4">&nbsp;</td></tr>'
+            . $rows . '</table>';
+
+        // --- Totales y pago --------------------------------------------------
         $paid = 0.0;
+        $cash = 0.0;
+        $payRows = '';
         foreach ($sale['payments'] as $p) {
-            $paid += (float) $p['amount'];
-            $label = $payLabels[$p['payment_method']] ?? ucfirst($p['payment_method']);
-            $payRows .= '<tr>'
-                . '<td style="font-size:9px;line-height:1.5;">' . $this->e($label) . '</td>'
-                . '<td style="font-size:9px;text-align:right;white-space:nowrap;line-height:1.5;">' . $cur . number_format((float) $p['amount'], 2) . '</td>'
-                . '</tr>';
+            $amount = (float) $p['amount'];
+            $paid += $amount;
+            if ($p['payment_method'] === 'efectivo') {
+                $cash += $amount;
+            }
+            $payRows .= '<tr><td>' . $this->e($payLabels[$p['payment_method']] ?? mb_strtoupper((string) $p['payment_method'], 'UTF-8'))
+                . '</td><td class="r">' . $this->e($this->money($cur, $amount)) . '</td></tr>';
         }
 
-        $discountRows = '';
-        if ((float) $sale['total_discount'] > 0) {
-            $discountRows .= '<tr>'
-                . '<td style="font-size:9px;">Descuento</td>'
-                . '<td style="font-size:9px;text-align:right;">-' . $cur . number_format((float) $sale['total_discount'], 2) . '</td>'
-                . '</tr>';
-        }
-        $taxRows = '';
-        if ((float) $sale['tax'] > 0) {
-            $taxRows .= '<tr>'
-                . '<td style="font-size:9px;">Impuesto</td>'
-                . '<td style="font-size:9px;text-align:right;">' . $cur . number_format((float) $sale['tax'], 2) . '</td>'
-                . '</tr>';
+        // Las ventas sembradas en init.sql no traen filas en sale_payments, solo
+        // el metodo en ventas. Sin esto el pago y el cambio saldrian en $0.00.
+        if (empty($sale['payments'])) {
+            $paid = (float) $sale['total'];
+            if ($sale['payment_method'] === 'efectivo') {
+                $cash = (float) $sale['total'];
+            }
+            $payRows = '<tr><td>' . $this->e($payLabels[$sale['payment_method']] ?? 'MIXTO')
+                . '</td><td class="r">' . $this->e($this->money($cur, $paid)) . '</td></tr>';
         }
 
-        $header = '';
-        if (setting('system_logo')) {
-            $header = '<div style="text-align:center;margin-bottom:4px;"><img src="' . $this->e(setting('system_logo')) . '" style="width:32mm;max-height:18mm;object-fit:contain;" /></div>';
+        $totals = '<table class="kv">';
+        if ((float) $sale['total_discount'] != 0.0) {
+            $totals .= $this->row('DESCUENTO', '-' . $this->money($cur, (float) $sale['total_discount']));
         }
+        $totals .= $this->row('SUBTOTAL', $this->money($cur, (float) $sale['subtotal']));
+        $totals .= $this->row('IVA (' . $business['tax_label'] . ')', $this->money($cur, (float) $sale['tax']));
+        $totals .= '</table>'
+            . $this->rule(true)
+            . '<table class="kv"><tr><td><b>TOTAL</b></td><td class="r"><b>'
+            . $this->e($this->money($cur, (float) $sale['total'])) . '</b></td></tr>'
+            . $payRows
+            . $this->row('FORMA DE PAGO', $payLabels[$sale['payment_method']] ?? 'MIXTO')
+            . $this->row('EFECTIVO RECIBIDO', $this->money($cur, $cash))
+            . $this->row('CAMBIO', $this->money($cur, max($paid - (float) $sale['total'], 0)))
+            . '</table>';
 
-        $dateTime = date('d/m/Y H:i', strtotime($sale['sale_date']));
+        // --- Pie -------------------------------------------------------------
+        $control = $this->controlNumber($sale, $dt);
+        $docId = 'DOC-' . $receipt . '-' . date('Ymd', $dt);
 
-        return '<html><head><meta charset="utf-8"><style>'
-            . 'body{font-family:dejavusans, sans-serif;}'
-            . 'table{width:100%;border-collapse:collapse;}'
-            . '</style></head><body>'
-            . $header
-            . '<div style="text-align:center;font-size:12px;font-weight:bold;">' . $this->e($business['name']) . '</div>'
-            . ($business['address'] ? '<div style="text-align:center;font-size:8px;">' . $this->e($business['address']) . '</div>' : '')
-            . ($business['phone'] ? '<div style="text-align:center;font-size:8px;">Tel: ' . $this->e($business['phone']) . '</div>' : '')
-            . '<div style="border-top:1px dashed #000;margin:5px 0;"></div>'
-            . '<table><tr><td style="font-size:9px;">Ticket N°</td><td style="font-size:9px;text-align:right;font-weight:bold;">' . str_pad((int) $sale['id'], 6, '0', STR_PAD_LEFT) . '</td></tr>'
-            . '<tr><td style="font-size:9px;">Fecha</td><td style="font-size:9px;text-align:right;">' . $dateTime . '</td></tr></table>'
-            . '<div style="border-top:1px dashed #000;margin:5px 0;"></div>'
-            . '<table>' . $lines . '</table>'
-            . '<div style="border-top:1px dashed #000;margin:5px 0;"></div>'
-            . '<table>'
-            . '<tr><td style="font-size:9px;">Subtotal</td><td style="font-size:9px;text-align:right;">' . $cur . number_format((float) $sale['subtotal'], 2) . '</td></tr>'
-            . $discountRows
-            . $taxRows
-            . '<tr><td style="font-size:11px;font-weight:bold;">TOTAL</td><td style="font-size:11px;font-weight:bold;text-align:right;">' . $cur . number_format((float) $sale['total'], 2) . '</td></tr>'
+        $foot = '<table class="kv">'
+            . $this->row('AUT. CONTROL', $control)
+            . $this->row('DOC. ID', $docId)
             . '</table>'
-            . '<div style="border-top:1px dashed #000;margin:5px 0;"></div>'
-            . '<table>' . $payRows
-            . '<tr><td style="font-size:9px;font-weight:bold;">Pagado</td><td style="font-size:9px;font-weight:bold;text-align:right;">' . $cur . number_format($paid, 2) . '</td></tr>'
-            . '<tr><td style="font-size:9px;font-weight:bold;">Vuelto</td><td style="font-size:9px;font-weight:bold;text-align:right;">' . $cur . number_format(max($paid - (float) $sale['total'], 0), 2) . '</td></tr>'
-            . '</table>'
-            . '<div style="border-top:1px dashed #000;margin:5px 0;"></div>'
-            . '<div style="text-align:center;font-size:9px;font-weight:bold;">' . $this->e($business['ticket_footer']) . '</div>'
-            . '<div style="text-align:center;font-size:7px;margin-top:2px;">' . $this->e('Sistema de Ventas') . '</div>'
+            . '<div class="c s7 t">GRACIAS POR SU COMPRA</div>'
+            . '<div class="c s7">Conserve este comprobante para su reclamo.</div>'
+            . '<div class="c bcode"><barcode code="' . $this->e($docId) . '" type="C128B" size="0.5" height="2" color="0,0,0"></barcode></div>'
+            . '<div class="c s7">' . $this->e($docId) . '</div>';
+
+        $css = '<style>
+            @page { background: #fbf9f0; }
+            body { font-family: courier, monospace; font-size: 7pt; line-height: 1.3; color: #16150f; }
+            table { width: 100%; border-collapse: collapse; }
+            td { padding: 0; vertical-align: top; }
+            .name { font-size: 8.5pt; font-weight: bold; }
+            .t { margin-top: 1.5px; }
+            .c { text-align: center; }
+            .r { text-align: right; }
+            .b { font-weight: bold; }
+            .s7 { font-size: 6.2pt; }
+            .kv td { padding: 0.6px 0; }
+            .it td { padding: 0.6px 0; }
+            /* mPDF no dibuja border en div, y en td deja huecos entre celdas:
+               las lineas van en una fila propia que abarca todo el ancho. */
+            .hrule td { padding: 0; font-size: 1pt; line-height: 1pt; border-bottom: 0.4pt dashed #55524a; }
+            .rule td { padding: 0; font-size: 1pt; line-height: 1pt; border-bottom: 0.4pt dashed #55524a; }
+            .rule.solid td { border-bottom: 0.5pt solid #16150f; }
+            .bcode { margin: 4px 0 1px; }
+        </style>';
+
+        return '<html><head><meta charset="utf-8">' . $css . '</head><body>'
+            . $head
+            . $this->rule()
+            . $info
+            . $this->rule()
+            . $items
+            . $this->rule()
+            . $totals
+            . $this->rule()
+            . $foot
             . '</body></html>';
     }
 
-    private function ticketShorten($text, $max)
+    /**
+     * Separador de ancho completo. mPDF ignora el borde de un div vacio, asi
+     * que se hace con una fila de una sola celda.
+     */
+    private function rule($solid = false)
     {
-        $text = html_entity_decode((string) $text, ENT_QUOTES, 'UTF-8');
-        if (mb_strlen($text, 'UTF-8') > $max) {
-            return mb_substr($text, 0, $max, 'UTF-8') . '…';
+        return '<table class="rule' . ($solid ? ' solid' : '') . '">'
+            . '<tr><td>&nbsp;</td></tr></table>';
+    }
+
+    /**
+     * Fila "clave ... valor" para las tablas de dos columnas.
+     */
+    private function row($key, $value)
+    {
+        return '<tr><td>' . $this->e((string) $key) . '</td>'
+            . '<td class="r">' . $this->e((string) $value) . '</td></tr>';
+    }
+
+    private function money($cur, $amount)
+    {
+        return $cur . number_format((float) $amount, 2);
+    }
+
+    /**
+     * El POS no tiene selector de empleado: el cajero es quien inicia sesion.
+     * Si la venta si tiene employee_id (carga manual o importacion) se prioriza.
+     */
+    private function ticketCashier($sale, $business)
+    {
+        $name = trim((string) ($sale['employee_name'] ?? '') . ' ' . (string) ($sale['employee_last_name'] ?? ''));
+
+        if ($name === '') {
+            $name = (string) ($_SESSION['user']['username'] ?? '');
         }
-        return $text;
+
+        $prefix = trim((string) ($business['cashier_prefix'] ?? ''));
+
+        // Sin nombre conocido solo se imprime la serie ("CAJ"), no "CAJ CAJERO".
+        if ($name === '') {
+            return $prefix;
+        }
+
+        $label = mb_strtoupper($name, 'UTF-8');
+
+        return $prefix !== '' ? $prefix . ' ' . $label : $label;
+    }
+
+    private function settingOr($fallback, $key, $default)
+    {
+        $value = setting($key, '');
+
+        return $value !== '' ? $value : ($fallback !== null ? $fallback : $default);
+    }
+
+    /**
+     * Numero de autorizacion/control. Sin una serie configurada se deriva del
+     * id de venta para que el ticket siempre muestre uno.
+     */
+    private function controlNumber($sale, $timestamp)
+    {
+        $series = setting('control_series', '');
+        $number = str_pad((int) $sale['id'], 6, '0', STR_PAD_LEFT);
+
+        if ($series !== '') {
+            return $series . '-' . $number;
+        }
+
+        return 'A' . date('y', $timestamp) . $number;
+    }
+
+    private function padName($name, $max)
+    {
+        if (mb_strlen($name, 'UTF-8') <= $max) {
+            return $name;
+        }
+
+        return mb_substr($name, 0, $max - 1, 'UTF-8') . '.';
     }
 
     private function e($value)

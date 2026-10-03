@@ -40,6 +40,23 @@ class Product
         return $stmt->fetch();
     }
 
+    /**
+     * Fotos adicionales (galería) de un producto.
+     */
+    public function getGallery($productId)
+    {
+        $query = "SELECT image_url, sort_order
+                    FROM product_images
+                   WHERE product_id = :product_id
+                   ORDER BY sort_order ASC, id ASC;";
+
+        $stmt = $this->conn->prepare($query);
+        $stmt->bindParam(':product_id', $productId, PDO::PARAM_INT);
+        $stmt->execute();
+
+        return $stmt->fetchAll();
+    }
+
     public function findByBarcode($barcode, $excludeId = null)
     {
         $query = "SELECT id FROM " . $this->table . " WHERE barcode = :barcode";

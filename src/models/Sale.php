@@ -16,7 +16,7 @@ class Sale
      */
     public function getCatalog()
     {
-        $query = "SELECT p.id, p.name, p.sale_price, p.stock, p.image_url, p.barcode,
+        $query = "SELECT p.id, p.name, p.description, p.sale_price, p.stock, p.image_url, p.barcode,
                          p.category_id, c.name AS category_name,
                          (SELECT MAX(pr.discount_percentage)
                             FROM promociones pr
@@ -72,7 +72,7 @@ class Sale
      * @throws Exception Si algún producto no existe, no hay stock o el pago no cubre el total
      * @return int ID de la venta creada
      */
-    public function createSale(array $items, array $payments, $taxRate = 0.0)
+    public function createSale(array $items, array $payments, $taxRate = 0.0, $employeeId = null)
     {
         if (empty($items)) {
             throw new Exception('El carrito está vacío.');
@@ -164,8 +164,10 @@ class Sale
                 "INSERT INTO " . $this->table . "
                     (cash_register_id, client_id, employee_id, promotion_id,
                      subtotal, total_discount, tax, total, payment_method, state)
-                 VALUES (NULL, NULL, NULL, NULL, :subtotal, :total_discount, :tax, :total, :payment_method, 'completada');"
+                 VALUES (NULL, NULL, :employee_id, NULL, :subtotal, :total_discount, :tax, :total, :payment_method, 'completada');"
             );
+            $employeeId = $employeeId !== null && (int) $employeeId > 0 ? (int) $employeeId : null;
+            $stmt->bindValue(':employee_id', $employeeId, $employeeId === null ? PDO::PARAM_NULL : PDO::PARAM_INT);
             $stmt->bindParam(':subtotal', $subtotal);
             $stmt->bindParam(':total_discount', $totalDiscount);
             $stmt->bindParam(':tax', $tax);
@@ -230,9 +232,14 @@ class Sale
     public function getTicketData($saleId)
     {
         $stmt = $this->conn->prepare(
-            "SELECT id, sale_date, subtotal, total_discount, tax, total, payment_method
-               FROM " . $this->table . "
-              WHERE id = :id AND state = 'completada'
+            "SELECT v.id, v.sale_date, v.subtotal, v.total_discount, v.tax, v.total, v.payment_method,
+                    v.cash_register_id, v.employee_id,
+                    e.name AS employee_name, e.last_name AS employee_last_name,
+                    c.id AS register_id, c.opening_time AS register_opening
+               FROM " . $this->table . " v
+               LEFT JOIN empleados e ON e.id = v.employee_id
+               LEFT JOIN caja c ON c.id = v.cash_register_id
+              WHERE v.id = :id AND v.state = 'completada'
               LIMIT 1;"
         );
         $stmt->bindParam(':id', $saleId, PDO::PARAM_INT);

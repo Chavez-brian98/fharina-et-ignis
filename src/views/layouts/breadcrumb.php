@@ -16,11 +16,18 @@
 </nav>
 
 <!-- MENSAJES FLASH (toast con Toastify) -->
-<?php $flashSuccess = flash('success'); ?>
-<?php $flashError = flash('error'); ?>
-<?php $flashMessage = $flashSuccess ?? $flashError; ?>
-<?php if ($flashMessage): ?>
-    <div id="flashToast" class="hidden"
-         data-type="<?= $flashSuccess ? 'success' : 'error' ?>"
-         data-message="<?= esc($flashMessage) ?>"></div>
-<?php endif; ?>
+<?php
+// Se emiten ambos marcadores: antes un success silenciaba al error y ambos
+// se borraban de la sesion, ASI QUE el error se perdia para siempre.
+$flashToasts = array_filter([
+    ['type' => 'success', 'message' => flash('success')],
+    ['type' => 'error', 'message' => flash('error')],
+], function ($flash) {
+    return !empty($flash['message']);
+});
+?>
+<?php foreach ($flashToasts as $flash): ?>
+    <div class="flashToast hidden"
+         data-type="<?= $flash['type'] ?>"
+         data-message="<?= esc($flash['message']) ?>"></div>
+<?php endforeach; ?>

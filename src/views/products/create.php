@@ -71,7 +71,7 @@
                     <i class="fa-solid fa-camera-retro"></i>
                 </button>
             </div>
-            <p class="text-xs text-gray-400 mt-1.5">Escanéalo con tu celular usando la cámara.</p>
+            <p class="text-xs text-gray-400 mt-1.5">Escríbelo a mano o escanéalo con la cámara. Déjalo vacío si el producto no tiene código.</p>
         </div>
 
         <div>

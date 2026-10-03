@@ -27,7 +27,9 @@ class SettingsController
 
     public function update()
     {
-        $textFields = ['system_name', 'business_name', 'address', 'phone', 'currency', 'tax_rate', 'ticket_footer'];
+        $textFields = ['system_name', 'business_name', 'address', 'phone', 'currency', 'tax_rate', 'ticket_footer',
+            'tax_id', 'tax_regime', 'commercial_activity', 'company_name', 'cashier_prefix', 'terminal_id',
+            'ticket_footer'];
 
         foreach ($textFields as $key) {
             $this->settingModel->update($key, trim($_POST[$key] ?? ''));

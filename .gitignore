@@ -25,3 +25,10 @@ tmp/
 
 /doc/database.md
 /doc/documentacion.md
+
+# certificados SSL generados localmente (nunca commitear la clave privada)
+# Para desarrollo se pueden subir certs/ de prueba si se desea que funcione al clonar.
+# Preferimos no subirlos: dejar comentado y generarlos en el servidor.
+# /certs/
+
+# certificados SSL generados localmente (nunca commitear la clave privada)
