@@ -28,9 +28,11 @@ return [
         'products'   => ProductController::class,
         'categories' => CategoryController::class,
         'settings'   => SettingsController::class,
+        'profile'    => ProfileController::class,
         'pos'        => PosController::class,
         'clients'    => ClientController::class,
         'employees'  => EmployeeController::class,
+        'audit'      => AuditController::class,
     ],
 
     // Ruta pública en español → método del SiteController

@@ -41,6 +41,7 @@
                         </div>
                     <?php endif; ?>
                     <input type="file" id="system_logo" name="system_logo" accept="image/*" class="form-input">
+                    <?php $cameraField = 'system_logo'; require __DIR__ . '/../partials/camera_capture.php'; ?>
                 </div>
                 <p class="text-xs text-gray-400 mt-1.5">JPG, PNG, WEBP o GIF · máximo 2 MB · se sube al sistema y se muestra en el sidebar.</p>
             </div>
@@ -97,6 +98,42 @@
             </div>
         </div>
 
+        <!-- Color principal -->
+        <div class="rounded-2xl bg-white p-6 shadow-lg shadow-gray-200/50 ring-1 ring-gray-100">
+            <div class="flex items-center gap-3 mb-6">
+                <div class="w-10 h-10 rounded-xl bg-orange-50 text-orange-500 flex items-center justify-center">
+                    <i class="fa-solid fa-palette"></i>
+                </div>
+                <div>
+                    <h3 class="font-semibold text-gray-900">Color principal</h3>
+                    <p class="text-xs text-gray-500">El color acento de todo el sistema (botones, sidebar, gráficas).</p>
+                </div>
+            </div>
+
+            <div class="flex flex-col sm:flex-row items-start sm:items-center gap-5">
+                <label for="primary_color" class="flex items-center gap-3 cursor-pointer">
+                    <input type="color" id="primary_color" name="primary_color"
+                           value="<?= esc($settings['primary_color'] ?? '#f97316') ?>"
+                           class="relative w-14 h-14 rounded-2xl cursor-pointer border-0 p-1.5 bg-white ring-1 ring-gray-200">
+                    <span class="text-sm text-gray-500">Elige el color</span>
+                </label>
+                <div class="flex items-center gap-1.5" id="primaryPalette">
+                    <span style="background: var(--color-primary-50)" class="w-7 h-7 rounded-lg ring-1 ring-gray-200"></span>
+                    <span style="background: var(--color-primary-100)" class="w-7 h-7 rounded-lg ring-1 ring-gray-200"></span>
+                    <span style="background: var(--color-primary-300)" class="w-7 h-7 rounded-lg ring-1 ring-gray-200"></span>
+                    <span style="background: var(--color-primary-500)" class="w-7 h-7 rounded-lg ring-1 ring-gray-200"></span>
+                    <span style="background: var(--color-primary-600)" class="w-7 h-7 rounded-lg ring-1 ring-gray-200"></span>
+                    <span style="background: var(--color-primary-800)" class="w-7 h-7 rounded-lg ring-1 ring-gray-200"></span>
+                </div>
+            </div>
+            <script>
+                document.getElementById('primary_color').addEventListener('input', function () {
+                    document.documentElement.style.setProperty('--color-primary', this.value);
+                });
+            </script>
+            <p class="text-xs text-gray-400 mt-3">Cambia el acento naranja por el color que prefieras: los tonos claros (50–300) y oscuros (600–950) se derivan automáticamente.</p>
+        </div>
+
         <!-- Apariencia -->
         <div class="rounded-2xl bg-white p-6 shadow-lg shadow-gray-200/50 ring-1 ring-gray-100">
             <div class="flex items-center gap-3 mb-6">
@@ -115,6 +152,7 @@
                     <img src="<?= esc($settings['login_photo'] ?? '') ?>" alt="Foto de login actual"
                          class="w-28 h-20 rounded-xl object-cover ring-1 ring-gray-200 bg-gray-100">
                     <input type="file" id="login_photo" name="login_photo" accept="image/*" class="form-input">
+                    <?php $cameraField = 'login_photo'; require __DIR__ . '/../partials/camera_capture.php'; ?>
                 </div>
                 <p class="text-xs text-gray-400 mt-1.5">JPG, PNG, WEBP o GIF · máximo 2 MB · recomendado 1200 × 800 px.</p>
             </div>

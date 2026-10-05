@@ -78,6 +78,7 @@
             <label for="image_file" class="form-label">Imagen del producto</label>
             <input type="file" id="image_file" name="image_file" accept="image/*" class="form-input">
             <p class="text-xs text-gray-400 mt-1.5">JPG, PNG, WEBP o GIF · máximo 2 MB · se sube al sistema y se muestra en el POS.</p>
+            <?php $cameraField = 'image_file'; require __DIR__ . '/../partials/camera_capture.php'; ?>
         </div>
 
         <div class="md:col-span-2">

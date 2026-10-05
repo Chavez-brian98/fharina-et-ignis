@@ -1,14 +1,19 @@
 <?php
 
 require_once __DIR__ . '/../models/Setting.php';
+require_once __DIR__ . '/../models/AuditLog.php';
 
 class SettingsController
 {
+    private $db;
     private $settingModel;
+    private $auditModel;
 
     public function __construct($db)
     {
+        $this->db = $db;
         $this->settingModel = new Setting($db);
+        $this->auditModel = new AuditLog($db);
     }
 
     public function index()
@@ -27,6 +32,8 @@ class SettingsController
 
     public function update()
     {
+        $before = $this->settingModel->getAll();
+
         $textFields = ['system_name', 'business_name', 'address', 'phone', 'currency', 'tax_rate', 'ticket_footer',
             'tax_id', 'tax_regime', 'commercial_activity', 'company_name', 'cashier_prefix', 'terminal_id',
             'ticket_footer'];
@@ -39,6 +46,15 @@ class SettingsController
         // se muestra el nombre del negocio, no el del sistema).
         $this->settingModel->update('system_name', trim($_POST['business_name'] ?? ''));
 
+        // Color principal del tema (hex #RRGGBB)
+        $primaryColor = strtolower(trim($_POST['primary_color'] ?? ''));
+        if ($primaryColor !== '' && !preg_match('/^#[0-9a-f]{6}$/', $primaryColor)) {
+            flash('error', 'El color principal debe ser un código hexadecimal válido (#RRGGBB).');
+            header('Location: ' . url('settings'));
+            exit;
+        }
+        $this->settingModel->update('primary_color', $primaryColor !== '' ? $primaryColor : '#f97316');
+
         foreach (['system_logo', 'login_photo'] as $field) {
             $path = upload_image($field);
             if ($path === false) {
@@ -49,6 +65,9 @@ class SettingsController
                 $this->settingModel->update($field, $path);
             }
         }
+
+        $after = $this->settingModel->getAll();
+        $this->auditModel->write('update', 'settings', null, $before, $after, 'Configuración del sistema actualizada.');
 
         flash('success', 'Configuración guardada correctamente.');
         header('Location: ' . url('settings'));

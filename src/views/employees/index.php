@@ -13,7 +13,7 @@
         <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
         <input type="text" id="searchInput"
                class="w-full rounded-xl border border-gray-200 bg-white pl-10 pr-4 py-2.5 text-sm shadow-sm shadow-gray-200/60 outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100 transition"
-               placeholder="Buscar por nombre, DUI, cargo, correo o usuario...">
+               placeholder="Buscar por nombre, DUI, correo o rol...">
     </div>
     <div>
         <select id="filterStatus" class="search-filter w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm shadow-sm shadow-gray-200/60 outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100">
@@ -32,7 +32,7 @@
                 <tr class="border-b border-gray-100 text-left text-xs uppercase tracking-wider text-gray-400">
                     <th class="px-5 py-3 font-semibold">Empleado</th>
                     <th class="px-5 py-3 font-semibold">DUI</th>
-                    <th class="px-5 py-3 font-semibold">Cargo</th>
+                    <th class="px-5 py-3 font-semibold">Rol</th>
                     <th class="px-5 py-3 font-semibold">Teléfono</th>
                     <th class="px-5 py-3 font-semibold">Salario base</th>
                     <th class="px-5 py-3 font-semibold">Estado</th>
@@ -46,10 +46,8 @@
                         'ID' => $item['id'],
                         'Nombre' => $fullName,
                         'DUI' => $item['id_document'],
-                        'Cargo' => $item['position'],
-                        'Usuario' => $item['username'] ?: '—',
                         'Correo' => $item['email'] ?: '—',
-                        'Rol' => $item['role_name'] ? ucfirst($item['role_name']) : 'Sin cuenta de acceso',
+                        'Rol' => Employee::roleLabel($item['role']),
                         'Teléfono' => $item['phone'] ?: '—',
                         'Dirección' => $item['address'] ?: '—',
                         'Fecha de nacimiento' => $item['birth_date'] ? date('d/m/Y', strtotime($item['birth_date'])) : '—',
@@ -60,12 +58,17 @@
                 ?>
                 <tr class="border-b border-gray-50 last:border-0 hover:bg-orange-50/40 transition-colors"
                     data-status="<?= esc($item['status']) ?>"
-                    data-search="<?= esc(strtolower($fullName . ' ' . $item['id_document'] . ' ' . $item['position'] . ' ' . ($item['phone'] ?? '') . ' ' . ($item['username'] ?? '') . ' ' . ($item['email'] ?? '') . ' ' . ($item['role_name'] ?? ''))) ?>">
+                    data-search="<?= esc(strtolower($fullName . ' ' . $item['id_document'] . ' ' . ($item['phone'] ?? '') . ' ' . ($item['email'] ?? '') . ' ' . (Employee::roleLabel($item['role']) ?? ''))) ?>">
                     <td class="px-5 py-3.5">
                         <div class="flex items-center gap-3">
-                            <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-orange-100 to-orange-50 text-orange-500 flex items-center justify-center shrink-0 ring-1 ring-orange-100 shadow-sm">
-                                <i class="fa-solid fa-user-tie text-sm"></i>
-                            </div>
+                            <?php if (!empty($item['profile_photo'])): ?>
+                                <img src="<?= esc($item['profile_photo']) ?>" alt="<?= esc($fullName) ?>"
+                                     class="w-9 h-9 rounded-lg object-cover shrink-0 ring-1 ring-orange-100 shadow-sm">
+                            <?php else: ?>
+                                <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-orange-100 to-orange-50 text-orange-500 flex items-center justify-center shrink-0 ring-1 ring-orange-100 shadow-sm">
+                                    <i class="fa-solid fa-user-tie text-sm"></i>
+                                </div>
+                            <?php endif; ?>
                             <span class="font-semibold text-gray-900"><?= esc($fullName) ?></span>
                         </div>
                     </td>
@@ -73,7 +76,7 @@
                         <span class="font-mono text-xs font-semibold text-gray-700 bg-gray-100 rounded-md px-2 py-1"><?= esc($item['id_document']) ?></span>
                     </td>
                     <td class="px-5 py-3.5">
-                        <span class="inline-flex items-center rounded-full bg-orange-50 px-2.5 py-1 text-xs font-semibold text-orange-600"><?= esc($item['position']) ?></span>
+                        <span class="inline-flex items-center rounded-full bg-orange-50 px-2.5 py-1 text-xs font-semibold text-orange-600"><?= esc(Employee::roleLabel($item['role'])) ?></span>
                     </td>
                     <td class="px-5 py-3.5 text-gray-600"><?= esc($item['phone']) ?: '—' ?></td>
                     <td class="px-5 py-3.5 font-semibold text-gray-900">$<?= number_format($item['base_salary'], 2) ?></td>
@@ -96,6 +99,7 @@
                         <div class="flex items-center justify-end gap-1.5">
                             <button type="button" class="btn-action btn-detail" title="Ver detalle"
                                     data-title="<?= esc($fullName) ?>"
+                                    data-image="<?= esc($item['profile_photo'] ?? '') ?>"
                                     data-icon="fa-user-tie"
                                     data-detail='<?= esc($detail) ?>'>
                                 <i class="fa-regular fa-eye"></i>

@@ -1,5 +1,11 @@
 document.addEventListener('DOMContentLoaded', function () {
 
+    // Color primario activo (definido por el tema dinámico en :root)
+    function primaryColor() {
+        var c = getComputedStyle(document.documentElement).getPropertyValue('--color-primary').trim();
+        return c || '#f97316';
+    }
+
     // ==========================================================================
     // TOASTS Toastify (mensajes flash tras crear/editar/desactivar/eliminar)
     // ==========================================================================
@@ -118,13 +124,23 @@ document.addEventListener('DOMContentLoaded', function () {
     const searchInput = document.getElementById('searchInput');
     const tableBody = document.getElementById('crudTableBody');
 
-    function applyFilters() {
+    function applyFilters(event) {
         if (!tableBody) return;
 
         const rows = tableBody.querySelectorAll('tr[data-search]');
         const categoryFilter = document.getElementById('filterCategory');
         const statusFilter = document.getElementById('filterStatus');
         const lowStockFilter = document.getElementById('filterLowStock');
+        const genericFilters = document.querySelectorAll('.search-filter[data-filter]');
+
+        const changedFilter = event && event.target;
+        genericFilters.forEach(function (filter) {
+            if (filter === changedFilter && filter.value === '') {
+                genericFilters.forEach(function (other) {
+                    if (other !== filter) other.value = '';
+                });
+            }
+        });
 
         const query = searchInput ? searchInput.value.trim().toLowerCase() : '';
         const category = categoryFilter ? categoryFilter.value : '';
@@ -145,6 +161,14 @@ document.addEventListener('DOMContentLoaded', function () {
             if (show && category && rowCategory !== category) show = false;
             if (show && status && rowStatus !== status) show = false;
             if (show && lowStock && !rowLow) show = false;
+
+            if (show) {
+                genericFilters.forEach(function (filter) {
+                    const attr = filter.getAttribute('data-filter');
+                    const value = filter.value;
+                    if (value && (row.getAttribute('data-' + attr) || '') !== value) show = false;
+                });
+            }
 
             row.classList.toggle('hidden', !show);
             if (show) visible++;
@@ -200,20 +224,24 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
                 mediaHtml += '</div>';
 
+                const plain = modal.getAttribute('data-plain') !== null;
+
                 let fields = '';
                 for (const key in data) {
                     if (key === 'ID') continue;
                     const rawVal = data[key];
                     const val = (rawVal !== null && rawVal !== '' && rawVal !== undefined) ? rawVal : '—';
                     const isLong = key === 'Nombre' || key === 'Descripción' || key === 'Dirección' || String(val).length > 30;
+                    const preserveLines = String(val).indexOf('\n') !== -1;
+                    const valueStyle = preserveLines ? ' style="white-space:pre-wrap;word-break:break-word;"' : '';
                     fields += '<div class="' + (isLong ? 'sm:col-span-2 ' : '') + 'rounded-xl bg-white px-4 py-3 ring-1 ring-gray-100 min-w-0">'
                         + '<span class="block text-xs font-medium text-gray-500 mb-1">' + key + '</span>'
-                        + '<span class="block text-sm font-semibold text-gray-900 leading-snug break-words">' + val + '</span>'
+                        + '<span class="block text-sm font-semibold text-gray-900 leading-snug break-words"' + valueStyle + '>' + val + '</span>'
                         + '</div>';
                 }
 
                 body.innerHTML = '<div class="flex flex-col md:flex-row gap-6">'
-                    + '<div class="relative shrink-0 w-full md:w-64 h-52 md:h-full md:min-h-60 rounded-2xl overflow-hidden ring-1 ring-orange-100 shadow-lg shadow-orange-100/60">' + mediaHtml + '</div>'
+                    + (plain ? '' : '<div class="relative shrink-0 w-full md:w-64 h-52 md:h-full md:min-h-60 rounded-2xl overflow-hidden ring-1 ring-orange-100 shadow-lg shadow-orange-100/60">' + mediaHtml + '</div>')
                     + '<div class="flex-1 grid grid-cols-1 min-[480px]:grid-cols-2 gap-3 content-start min-w-0">' + fields + '</div>'
                     + '</div>';
 
@@ -234,6 +262,121 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 
     // ==========================================================================
+    // CÁMARA PARA FOTOS (opción "Tomar foto" junto a cualquier input de archivo)
+    // ==========================================================================
+    const cameraModal = document.getElementById('cameraModal');
+    const cameraTriggers = document.querySelectorAll('.camera-trigger');
+
+    if (cameraModal && cameraTriggers.length) {
+        const camVideo = document.getElementById('cameraVideo');
+        const camCanvas = document.getElementById('cameraCanvas');
+        const camError = document.getElementById('cameraError');
+        const camCaptureBtn = document.getElementById('cameraCaptureBtn');
+        const camSwitchBtn = document.getElementById('cameraSwitchBtn');
+        let camStream = null;
+        let camFacing = 'environment';
+        let camTarget = null;
+
+        function camStopStream() {
+            if (camStream) {
+                camStream.getTracks().forEach(function (track) { track.stop(); });
+                camStream = null;
+            }
+            camVideo.srcObject = null;
+        }
+
+        function camStart() {
+            camStopStream();
+            camCaptureBtn.disabled = false;
+            camSwitchBtn.disabled = false;
+            camError.classList.add('hidden');
+            camError.classList.remove('flex');
+
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                camError.classList.remove('hidden');
+                camError.classList.add('flex');
+                camCaptureBtn.disabled = true;
+                camSwitchBtn.disabled = true;
+                return;
+            }
+
+            navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: camFacing } }, audio: false })
+                .then(function (stream) {
+                    camStream = stream;
+                    camVideo.srcObject = stream;
+                    camVideo.play().catch(function () {});
+                })
+                .catch(function () {
+                    camError.classList.remove('hidden');
+                    camError.classList.add('flex');
+                    camCaptureBtn.disabled = true;
+                    camSwitchBtn.disabled = true;
+                });
+        }
+
+        function camOpen(targetInput) {
+            camTarget = targetInput;
+            cameraModal.classList.add('open');
+            document.body.style.overflow = 'hidden';
+            camStart();
+        }
+
+        function camCloseModal() {
+            cameraModal.classList.remove('open');
+            document.body.style.overflow = '';
+            camStopStream();
+            camTarget = null;
+        }
+
+        cameraTriggers.forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                const input = document.getElementById(btn.getAttribute('data-target'));
+                if (input) camOpen(input);
+            });
+        });
+
+        camCaptureBtn.addEventListener('click', function () {
+            if (!camStream || !camTarget) return;
+            const w = camVideo.videoWidth || 640;
+            const h = camVideo.videoHeight || 480;
+            camCanvas.width = w;
+            camCanvas.height = h;
+            camCanvas.getContext('2d').drawImage(camVideo, 0, 0, w, h);
+
+            camCanvas.toBlob(function (blob) {
+                if (!blob || !camTarget) return;
+                const file = new File([blob], 'captura_' + Date.now() + '.jpg', { type: 'image/jpeg' });
+
+                try {
+                    const dt = new DataTransfer();
+                    dt.items.add(file);
+                    camTarget.files = dt.files;
+                } catch (err) {}
+
+                const preview = document.getElementById('camera-preview-' + camTarget.id);
+                if (preview) {
+                    preview.src = camCanvas.toDataURL('image/jpeg', 0.92);
+                    preview.classList.remove('hidden');
+                }
+                camCloseModal();
+            }, 'image/jpeg', 0.92);
+        });
+
+        camSwitchBtn.addEventListener('click', function () {
+            camFacing = camFacing === 'environment' ? 'user' : 'environment';
+            camStart();
+        });
+
+        cameraModal.querySelector('.camera-close').addEventListener('click', camCloseModal);
+        cameraModal.addEventListener('click', function (e) {
+            if (e.target === cameraModal) camCloseModal();
+        });
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape' && cameraModal.classList.contains('open')) camCloseModal();
+        });
+    }
+
+    // ==========================================================================
     // DESACTIVAR / ELIMINAR con confirmación (SweetAlert)
     // ==========================================================================
     document.body.addEventListener('click', function (e) {
@@ -250,7 +393,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     : 'El registro "' + (toggleBtn.getAttribute('data-name') || '') + '" será desactivado.',
                 icon: 'warning',
                 showCancelButton: true,
-                confirmButtonColor: '#f97316',
+                confirmButtonColor: primaryColor(),
                 cancelButtonColor: '#6b7280',
                 confirmButtonText: activating ? 'Sí, activar' : 'Sí, desactivar',
                 cancelButtonText: 'Cancelar'

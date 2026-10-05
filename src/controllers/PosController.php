@@ -1,16 +1,19 @@
 <?php
 
 require_once __DIR__ . '/../models/Sale.php';
+require_once __DIR__ . '/../models/AuditLog.php';
 
 class PosController
 {
     private $db;
     private $saleModel;
+    private $auditModel;
 
     public function __construct($db)
     {
         $this->db = $db;
         $this->saleModel = new Sale($db);
+        $this->auditModel = new AuditLog($db);
     }
 
     public function index()
@@ -85,6 +88,9 @@ class PosController
             $taxRate = (float) setting('tax_rate', 0);
             $employeeId = $_SESSION['user']['id'] ?? null;
             $saleId = $this->saleModel->createSale($items, $payments, $taxRate, $employeeId);
+
+            $saleData = $this->saleModel->getTicketData($saleId);
+            $this->auditModel->write('sale', 'ventas', $saleId, null, $saleData ?: null, 'Venta realizada.');
         } catch (Exception $e) {
             flash('error', $e->getMessage());
             header('Location: ' . url('pos'));
@@ -369,7 +375,7 @@ class PosController
         $name = trim((string) ($sale['employee_name'] ?? '') . ' ' . (string) ($sale['employee_last_name'] ?? ''));
 
         if ($name === '') {
-            $name = (string) ($_SESSION['user']['username'] ?? '');
+            $name = trim((string) ($_SESSION['user']['name'] ?? '') . ' ' . (string) ($_SESSION['user']['last_name'] ?? ''));
         }
 
         $prefix = trim((string) ($business['cashier_prefix'] ?? ''));

@@ -85,6 +85,7 @@
             </div>
             <input type="hidden" name="image_url" value="<?= esc($product['image_url']) ?>">
             <p class="text-xs text-gray-400 mt-1.5">JPG, PNG, WEBP o GIF · máximo 2 MB · se sube al sistema y se muestra en el POS.</p>
+            <?php $cameraField = 'image_file'; require __DIR__ . '/../partials/camera_capture.php'; ?>
         </div>
 
         <div class="md:col-span-2">

@@ -6,6 +6,7 @@
     <title><?= isset($title) ? $title . ' | ' . setting('business_name', 'Panadería') : setting('business_name', 'Panadería') ?></title>
 
     <script src="https://cdn.tailwindcss.com"></script>
+    <?php require __DIR__ . '/../partials/theme.php'; ?>
     <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js@1.12.0/src/toastify.css">
@@ -57,6 +58,9 @@
                 </a>
                 <a href="<?= url('employees') ?>" title="Empleados" class="flex items-center gap-3 px-2 py-2 rounded-lg text-sm font-medium sidebar-link <?= ($currentModule ?? '') === 'employees' ? 'nav-active' : '' ?>">
                     <i class="fa-solid fa-user-tie w-4 text-center shrink-0"></i><span class="sidebar-text">Empleados</span>
+                </a>
+                <a href="<?= url('audit') ?>" title="Bitácora" class="flex items-center gap-3 px-2 py-2 rounded-lg text-sm font-medium sidebar-link <?= ($currentModule ?? '') === 'audit' ? 'nav-active' : '' ?>">
+                    <i class="fa-solid fa-clipboard-list w-4 text-center shrink-0"></i><span class="sidebar-text">Bitácora</span>
                 </a>
             </div>
 
@@ -116,12 +120,18 @@
         </nav>
 
         <?php $currentUser = $_SESSION['user'] ?? null; ?>
-        <div class="px-4 py-4 border-t border-gray-100 flex items-center gap-3 user-row">
-            <div class="w-9 h-9 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center font-bold shrink-0"><?= strtoupper(substr($currentUser['username'] ?? 'A', 0, 1)) ?></div>
-            <div class="sidebar-text flex-1 min-w-0">
-                <p class="text-sm font-semibold text-gray-900 truncate"><?= esc($currentUser['username'] ?? 'Administrador') ?></p>
-                <p class="text-xs text-gray-400 truncate"><?= esc($currentUser['email'] ?? 'admin@bakery.com') ?></p>
-            </div>
+        <div class="px-4 py-4 border-t border-gray-100 flex items-center gap-2 user-row">
+            <a href="<?= url('profile') ?>" title="Mi perfil" class="flex items-center gap-3 min-w-0 flex-1 rounded-xl px-1.5 py-1 -mx-1 hover:bg-orange-50 transition-colors">
+                <?php if (!empty($currentUser['profile_photo'])): ?>
+                    <img src="<?= esc($currentUser['profile_photo']) ?>" alt="Foto de perfil" class="w-9 h-9 rounded-full object-cover shrink-0">
+                <?php else: ?>
+                    <div class="w-9 h-9 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center font-bold shrink-0"><?= esc(strtoupper(substr($currentUser['name'] ?? 'A', 0, 1))) ?></div>
+                <?php endif; ?>
+                <div class="sidebar-text flex-1 min-w-0">
+                    <p class="text-sm font-semibold text-gray-900 truncate"><?= esc($currentUser['name'] ?? 'Administrador') ?></p>
+                    <p class="text-xs text-gray-400 truncate"><?= esc($currentUser['email'] ?? 'admin@bakery.com') ?></p>
+                </div>
+            </a>
             <a href="<?= url('auth/logout') ?>" title="Cerrar sesión" class="btn-action sidebar-text">
                 <i class="fa-solid fa-right-from-bracket"></i>
             </a>

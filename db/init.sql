@@ -21,18 +21,12 @@ DROP TABLE IF EXISTS
     product_images,
     client_segment, client_segments, clients,
     sales_commissions, performance_reviews, attendances, shifts, empleados,
-    roles, notificaciones, settings;
+    notificaciones, settings;
 SET FOREIGN_KEY_CHECKS = 1;
 
 -- ----------------------------------------------------------------------------
 -- TABLAS "PADRE" (sin dependencias)
 -- ----------------------------------------------------------------------------
-CREATE TABLE roles (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    name VARCHAR(50) NOT NULL UNIQUE,
-    description VARCHAR(255)
-) ENGINE=InnoDB;
-
 CREATE TABLE proveedores (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(120) NOT NULL,
@@ -75,9 +69,13 @@ CREATE TABLE clients (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
     last_name VARCHAR(100) NOT NULL,
+    id_document VARCHAR(30) UNIQUE,
+    client_type ENUM('persona','empresa') NOT NULL DEFAULT 'persona',
+    company_name VARCHAR(150),
     phone VARCHAR(20),
     email VARCHAR(150) UNIQUE,
     address VARCHAR(255),
+    profile_photo VARCHAR(500),
     birth_date DATE,
     registration_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     status ENUM('active','inactive') NOT NULL DEFAULT 'active',
@@ -101,23 +99,21 @@ CREATE TABLE empleados (
     name VARCHAR(100) NOT NULL,
     last_name VARCHAR(100) NOT NULL,
     id_document VARCHAR(30) NOT NULL UNIQUE,
-    username VARCHAR(50) UNIQUE,
     email VARCHAR(150) UNIQUE,
     password_hash VARCHAR(255),
-    role_id INT,
+    role ENUM('administrador','cajero','mesero','produccion','domiciliero','sub_jefe') NOT NULL,
     phone VARCHAR(20),
     address VARCHAR(255),
+    profile_photo VARCHAR(500),
     birth_date DATE,
     hire_date DATE NOT NULL,
-    position VARCHAR(80) NOT NULL,
     base_salary DECIMAL(10,2) NOT NULL,
     status ENUM('active','inactive') NOT NULL DEFAULT 'active',
     last_login TIMESTAMP NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_empleados_role FOREIGN KEY (role_id) REFERENCES roles(id),
     CONSTRAINT chk_empleados_login CHECK (
-        (role_id IS NULL AND username IS NULL AND email IS NULL AND password_hash IS NULL)
-        OR (role_id IS NOT NULL AND username IS NOT NULL AND email IS NOT NULL AND password_hash IS NOT NULL)
+        (email IS NULL AND password_hash IS NULL)
+        OR (email IS NOT NULL AND password_hash IS NOT NULL)
     )
 ) ENGINE=InnoDB;
 
@@ -582,13 +578,28 @@ CREATE TABLE contact_messages (
 ) ENGINE=InnoDB;
 
 -- ----------------------------------------------------------------------------
+-- 15. BITÁCORA (auditoría de acciones en el sistema)
+-- ----------------------------------------------------------------------------
+CREATE TABLE audit_logs (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NULL,
+    action VARCHAR(50) NOT NULL,
+    table_name VARCHAR(100) NULL,
+    record_id INT UNSIGNED NULL,
+    old_data JSON NULL,
+    new_data JSON NULL,
+    description VARCHAR(255) NULL,
+    ip_address VARCHAR(45) NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    KEY idx_audit_user (user_id),
+    KEY idx_audit_action (action),
+    KEY idx_audit_table (table_name),
+    CONSTRAINT fk_audit_logs_user FOREIGN KEY (user_id) REFERENCES empleados(id) ON DELETE SET NULL
+) ENGINE=InnoDB;
+
+-- ----------------------------------------------------------------------------
 -- SEED DATA (datos de ejemplo)
 -- ----------------------------------------------------------------------------
-INSERT INTO roles (name, description) VALUES
-('administrador', 'Acceso total al sistema'),
-('cajero', 'Gestiona ventas y caja'),
-('panadero', 'Gestiona producción');
-
 INSERT INTO proveedores (name, supplier_type, contact, phone, email, payment_terms) VALUES
 ('Harinera Central', 'Harinera', 'María López', '2222-1111', 'ventas@harineracentral.com', '30 días'),
 ('Lácteos Don Pepe', 'Lácteos', 'Pedro Martínez', '2333-2222', 'info@lacteosdonpepe.com', 'Contado');
@@ -636,20 +647,22 @@ INSERT INTO client_segments (name, description) VALUES
 ('Frecuentes', 'Clientes que compran al menos una vez por semana'),
 ('VIP', 'Clientes de alto valor');
 
-INSERT INTO clients (name, last_name, phone, email, address) VALUES
-('Ana', 'García', '5555-0001', 'ana.garcia@mail.com', 'Zona 1, Ciudad'),
-('Luis', 'Pérez', '5555-0002', 'luis.perez@mail.com', 'Zona 10, Ciudad');
+INSERT INTO clients (name, last_name, id_document, client_type, company_name, phone, email, address) VALUES
+('Ana', 'García', '01234567-8', 'persona', NULL, '5555-0001', 'ana.garcia@mail.com', 'Zona 1, Ciudad'),
+('Luis', 'Pérez', '02345678-9', 'persona', NULL, '5555-0002', 'luis.perez@mail.com', 'Zona 10, Ciudad'),
+('Panadería del Valle', '', '03678901-2', 'empresa', 'Panadería del Valle', '5555-0003', 'ventas@valle.com', 'Zona 4, Ciudad');
 
 INSERT INTO client_segment (client_id, segment_id) VALUES (1, 1), (2, 2);
 
 -- ----------------------------------------------------------------------------
 -- DASHBOARD SEED (empleados, promociones, caja, ventas, pedidos)
 -- ----------------------------------------------------------------------------
--- Los empleados con credenciales de acceso (role_id/username/email/password_hash)
-INSERT INTO empleados (id, name, last_name, id_document, username, email, password_hash, role_id, phone, address, birth_date, hire_date, position, base_salary) VALUES
-(1, 'Carlos', 'Ramírez', 'PAN-0001', 'ramirez', 'carlos.ramirez@bakery.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 3, '5555-0101', 'Zona 5, Ciudad', '1990-03-15', '2023-05-01', 'Panadero', 1200.00),
-(2, 'María', 'González', 'CAJ-0001', 'cajero', 'maria.gonzalez@bakery.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 2, '5555-0102', 'Zona 3, Ciudad', '1995-07-22', '2023-06-15', 'Cajero', 1000.00),
-(3, 'BRIAN JOSUE CHAVEZ RECINOS', 'Administrador', 'ADM-0001', 'BRIAN JOSUE CHAVEZ RECINOS', 'admin@ignis.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 1, NULL, NULL, NULL, '2023-01-01', 'Administrador', 1500.00);
+-- Los empleados con credenciales de acceso (role/email/password_hash)
+-- El acceso es solo con el correo; como nombre se usa name + last_name.
+INSERT INTO empleados (id, name, last_name, id_document, email, password_hash, role, phone, address, birth_date, hire_date, base_salary) VALUES
+(1, 'Carlos', 'Ramírez', 'PAN-0001', 'carlos.ramirez@bakery.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'produccion', '5555-0101', 'Zona 5, Ciudad', '1990-03-15', '2023-05-01', 1200.00),
+(2, 'María', 'González', 'CAJ-0001', 'maria.gonzalez@bakery.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'cajero', '5555-0102', 'Zona 3, Ciudad', '1995-07-22', '2023-06-15', 1000.00),
+(3, 'BRIAN JOSUE CHAVEZ RECINOS', 'Administrador', 'ADM-0001', 'admin@ignis.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'administrador', NULL, NULL, NULL, '2023-01-01', 1500.00);
 
 INSERT INTO promociones (id, name, promotion_type, discount_percentage, start_date, end_date, status) VALUES
 (1, '2x1 Pan de Queso', 'dos_por_uno', 50.00, DATE_SUB(CURDATE(), INTERVAL 7 DAY), DATE_ADD(CURDATE(), INTERVAL 7 DAY), 'active'),
@@ -839,4 +852,5 @@ INSERT INTO settings (setting_key, setting_value) VALUES
 ('tax_rate', '0'),
 ('ticket_footer', '¡Gracias por su compra!'),
 ('system_logo', ''),
-('login_photo', 'https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=1200&q=80');
+('login_photo', 'https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=1200&q=80'),
+('primary_color', '#f97316');

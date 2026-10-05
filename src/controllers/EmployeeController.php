@@ -1,16 +1,19 @@
 <?php
 
 require_once __DIR__ . '/../models/Employee.php';
+require_once __DIR__ . '/../models/AuditLog.php';
 
 class EmployeeController
 {
     private $db;
     private $employeeModel;
+    private $auditModel;
 
     public function __construct($db)
     {
         $this->db = $db;
         $this->employeeModel = new Employee($db);
+        $this->auditModel = new AuditLog($db);
     }
 
     public function index()
@@ -28,7 +31,7 @@ class EmployeeController
 
     public function create()
     {
-        $roles = $this->employeeModel->getAllRoles();
+        $roles = Employee::roles();
         $title = 'Nuevo Empleado';
         $currentModule = 'employees';
         $breadcrumbs = [
@@ -55,11 +58,10 @@ class EmployeeController
         $birth_date = trim($_POST['birth_date'] ?? '');
         $birth_date = $birth_date !== '' ? $birth_date : null;
         $hire_date = trim($_POST['hire_date'] ?? '');
-        $position = trim($_POST['position'] ?? '');
         $baseSalary = $_POST['base_salary'] ?? '';
 
-        if ($name === '' || $last_name === '' || $idDocument === '' || $hire_date === '' || $position === '' || $baseSalary === '') {
-            flash('error', 'Los campos nombre, apellido, DUI, fecha de contratación, cargo y salario base son obligatorios.');
+        if ($name === '' || $last_name === '' || $idDocument === '' || $hire_date === '' || $baseSalary === '') {
+            flash('error', 'Los campos nombre, apellido, DUI, fecha de contratación y salario base son obligatorios.');
             header('Location: ' . url('employees/create'));
             exit;
         }
@@ -91,13 +93,17 @@ class EmployeeController
             exit;
         }
 
-        if ($login['username'] !== null && $this->employeeModel->usernameExists($login['username'])) {
-            flash('error', 'Ya existe una cuenta con ese nombre de usuario.');
+        $profilePhoto = upload_image('profile_photo');
+
+        if ($profilePhoto === false) {
             header('Location: ' . url('employees/create'));
             exit;
         }
 
-        if ($this->employeeModel->create($name, $last_name, $idDocument, $login['username'], $login['email'], $login['password_hash'], $login['role_id'], $phone ?: null, $address ?: null, $birth_date, $hire_date, $position, $baseSalary)) {
+        if ($this->employeeModel->create($name, $last_name, $idDocument, $login['email'], $login['password_hash'], $login['role'], $phone ?: null, $address ?: null, $birth_date, $hire_date, $baseSalary, $profilePhoto)) {
+            $recordId = (int) $this->db->lastInsertId();
+            $new = $this->employeeModel->getById($recordId);
+            $this->auditModel->write('create', 'empleados', $recordId, null, $new ?: null, 'Empleado creado.');
             flash('success', 'Empleado creado correctamente.');
         } else {
             flash('error', 'No se pudo crear el empleado.');
@@ -117,7 +123,7 @@ class EmployeeController
             exit;
         }
 
-        $roles = $this->employeeModel->getAllRoles();
+        $roles = Employee::roles();
         $title = 'Editar Empleado';
         $currentModule = 'employees';
         $breadcrumbs = [
@@ -152,12 +158,11 @@ class EmployeeController
         $birth_date = trim($_POST['birth_date'] ?? '');
         $birth_date = $birth_date !== '' ? $birth_date : null;
         $hire_date = trim($_POST['hire_date'] ?? '');
-        $position = trim($_POST['position'] ?? '');
         $baseSalary = $_POST['base_salary'] ?? '';
         $status = $_POST['status'] ?? 'active';
 
-        if ($name === '' || $last_name === '' || $idDocument === '' || $hire_date === '' || $position === '' || $baseSalary === '') {
-            flash('error', 'Los campos nombre, apellido, DUI, fecha de contratación, cargo y salario base son obligatorios.');
+        if ($name === '' || $last_name === '' || $idDocument === '' || $hire_date === '' || $baseSalary === '') {
+            flash('error', 'Los campos nombre, apellido, DUI, fecha de contratación y salario base son obligatorios.');
             header('Location: ' . url('employees/edit/' . $id));
             exit;
         }
@@ -189,13 +194,20 @@ class EmployeeController
             exit;
         }
 
-        if ($login['username'] !== null && $this->employeeModel->usernameExists($login['username'], $id)) {
-            flash('error', 'Ya existe otra cuenta con ese nombre de usuario.');
+        $profilePhoto = upload_image('profile_photo');
+
+        if ($profilePhoto === false) {
             header('Location: ' . url('employees/edit/' . $id));
             exit;
         }
 
-        if ($this->employeeModel->update($id, $name, $last_name, $idDocument, $login['username'], $login['email'], $login['password_hash'], $login['role_id'], $phone ?: null, $address ?: null, $birth_date, $hire_date, $position, $baseSalary, $status)) {
+        if ($profilePhoto === null) {
+            $profilePhoto = isset($_POST['remove_profile_photo']) ? null : (($employee['profile_photo'] ?? null) ?: null);
+        }
+
+        if ($this->employeeModel->update($id, $name, $last_name, $idDocument, $login['email'], $login['password_hash'], $login['role'], $phone ?: null, $address ?: null, $birth_date, $hire_date, $baseSalary, $status, $profilePhoto)) {
+            $after = $this->employeeModel->getById($id);
+            $this->auditModel->write('update', 'empleados', $id, $employee, $after ?: null, 'Empleado actualizado.');
             flash('success', 'Empleado actualizado correctamente.');
         } else {
             flash('error', 'No se pudo actualizar el empleado.');
@@ -207,20 +219,22 @@ class EmployeeController
 
     private function resolveLogin($existing, $isCreate, &$errorMessage)
     {
-        $username = trim($_POST['username'] ?? '');
-        $email = trim($_POST['email'] ?? '');
-        $password = $_POST['password'] ?? '';
-        $roleId = isset($_POST['role_id']) && $_POST['role_id'] !== '' ? (int) $_POST['role_id'] : null;
+        $role = isset($_POST['role']) && $_POST['role'] !== '' ? $_POST['role'] : null;
 
-        $hasAccount = $existing && !empty($existing['has_login']);
-        $wantsAccount = $username !== '' || $email !== '' || $password !== '' || $roleId !== null;
-
-        if (!$hasAccount && !$wantsAccount) {
-            return ['username' => null, 'email' => null, 'password_hash' => null, 'role_id' => null];
+        if ($role === null || !in_array($role, Employee::roles(), true)) {
+            $errorMessage = 'Selecciona un rol válido para el empleado.';
+            return false;
         }
 
-        if ($email === '' || $username === '' || $roleId === null) {
-            $errorMessage = 'Para la cuenta de acceso completa nombre de usuario, correo electrónico y rol.';
+        $email = trim($_POST['email'] ?? '');
+        $password = $_POST['password'] ?? '';
+
+        if ($email === '' && $password === '') {
+            return ['email' => null, 'password_hash' => null, 'role' => $role];
+        }
+
+        if ($email === '') {
+            $errorMessage = 'Para la cuenta de acceso completa el correo electrónico.';
             return false;
         }
 
@@ -240,16 +254,19 @@ class EmployeeController
         }
 
         return [
-            'username' => $username,
             'email' => $email,
             'password_hash' => $password !== '' ? password_hash($password, PASSWORD_DEFAULT) : null,
-            'role_id' => $roleId,
+            'role' => $role,
         ];
     }
 
     public function toggle($id)
     {
+        $before = $this->employeeModel->getById($id);
+
         if ($this->employeeModel->toggleStatus($id)) {
+            $after = $this->employeeModel->getById($id);
+            $this->auditModel->write('toggle', 'empleados', $id, $before, $after ?: null, 'Estado del empleado actualizado.');
             flash('success', 'Estado del empleado actualizado correctamente.');
         } else {
             flash('error', 'No se pudo cambiar el estado del empleado.');
@@ -261,7 +278,10 @@ class EmployeeController
 
     public function delete($id)
     {
+        $before = $this->employeeModel->getById($id);
+
         if ($this->employeeModel->delete($id)) {
+            $this->auditModel->write('delete', 'empleados', $id, $before ?: null, null, 'Empleado eliminado.');
             flash('success', 'Empleado eliminado correctamente.');
         } else {
             flash('error', 'No se pudo eliminar el empleado. Asegúrate de que no tenga turnos, asistencias, ventas u otros registros asociados.');

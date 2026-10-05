@@ -2,18 +2,21 @@
 
 require_once __DIR__ . '/../models/Product.php';
 require_once __DIR__ . '/../models/Category.php';
+require_once __DIR__ . '/../models/AuditLog.php';
 
 class ProductController
 {
     private $db;
     private $productModel;
     private $categoryModel;
+    private $auditModel;
 
     public function __construct($db)
     {
         $this->db = $db;
         $this->productModel = new Product($db);
         $this->categoryModel = new Category($db);
+        $this->auditModel = new AuditLog($db);
     }
 
     public function index()
@@ -83,6 +86,9 @@ class ProductController
         }
 
         if ($this->productModel->create($category_id, $name, $description, $sale_price, $production_cost, $stock, $min_stock, $image_url, $barcode)) {
+            $recordId = (int) $this->db->lastInsertId();
+            $new = $this->productModel->getById($recordId);
+            $this->auditModel->write('create', 'productos', $recordId, null, $new ?: null, 'Producto creado.');
             flash('success', 'Producto creado correctamente.');
         } else {
             flash('error', 'No se pudo crear el producto.');
@@ -153,7 +159,11 @@ class ProductController
             $image_url = $uploaded;
         }
 
+        $before = $this->productModel->getById($id);
+
         if ($this->productModel->update($id, $category_id, $name, $description, $sale_price, $production_cost, $stock, $min_stock, $image_url, $barcode, $status)) {
+            $after = $this->productModel->getById($id);
+            $this->auditModel->write('update', 'productos', $id, $before, $after ?: null, 'Producto actualizado.');
             flash('success', 'Producto actualizado correctamente.');
         } else {
             flash('error', 'No se pudo actualizar el producto.');
@@ -165,7 +175,11 @@ class ProductController
 
     public function toggle($id)
     {
+        $before = $this->productModel->getById($id);
+
         if ($this->productModel->toggleStatus($id)) {
+            $after = $this->productModel->getById($id);
+            $this->auditModel->write('toggle', 'productos', $id, $before, $after ?: null, 'Estado del producto actualizado.');
             flash('success', 'Estado del producto actualizado correctamente.');
         } else {
             flash('error', 'No se pudo cambiar el estado del producto.');
@@ -177,7 +191,10 @@ class ProductController
 
     public function delete($id)
     {
+        $before = $this->productModel->getById($id);
+
         if ($this->productModel->delete($id)) {
+            $this->auditModel->write('delete', 'productos', $id, $before ?: null, null, 'Producto eliminado.');
             flash('success', 'Producto eliminado correctamente.');
         } else {
             flash('error', 'No se pudo eliminar el producto.');

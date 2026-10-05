@@ -14,7 +14,7 @@
     <div class="border-b border-gray-100 bg-gradient-to-r from-orange-50/80 to-white px-6 py-5">
         <h2 class="font-semibold text-gray-900"><i class="fa-solid fa-user-tie text-orange-500 mr-2"></i>Información del empleado</h2>
     </div>
-    <form action="<?= url('employees/store') ?>" method="POST" class="px-6 py-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+    <form action="<?= url('employees/store') ?>" method="POST" enctype="multipart/form-data" class="px-6 py-6 grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
             <label for="name" class="form-label">Nombre <span class="text-red-500">*</span></label>
             <input type="text" id="name" name="name" class="form-input" value="<?= old('name') ?>" required>
@@ -51,11 +51,6 @@
         </div>
 
         <div>
-            <label for="position" class="form-label">Cargo <span class="text-red-500">*</span></label>
-            <input type="text" id="position" name="position" maxlength="80" class="form-input" value="<?= old('position') ?>" required placeholder="Ej: Panadero">
-        </div>
-
-        <div>
             <label for="base_salary" class="form-label">Salario base ($) <span class="text-red-500">*</span></label>
             <input type="number" step="0.01" min="0" id="base_salary" name="base_salary" class="form-input" value="<?= old('base_salary') ?>" required>
         </div>
@@ -68,14 +63,19 @@
             </select>
         </div>
 
-        <div class="md:col-span-2 mt-2 border-t border-gray-100 pt-5">
-            <h3 class="font-semibold text-gray-900"><i class="fa-solid fa-key text-orange-500 mr-2"></i>Cuenta de acceso</h3>
-            <p class="text-sm text-gray-500 mt-1">Opcional. Completa usuario, correo, contraseña y rol para que el empleado pueda iniciar sesión. Si lo dejas vacío, el empleado se guardará sin cuenta de acceso.</p>
+        <div>
+            <label for="role" class="form-label">Rol <span class="text-red-500">*</span></label>
+            <select id="role" name="role" class="form-input" required>
+                <option value="">Selecciona un rol...</option>
+                <?php foreach ($roles as $role): ?>
+                    <option value="<?= $role ?>" <?= old('role') === $role ? 'selected' : '' ?>><?= esc(Employee::roleLabel($role)) ?></option>
+                <?php endforeach; ?>
+            </select>
         </div>
 
-        <div>
-            <label for="username" class="form-label">Nombre de usuario</label>
-            <input type="text" id="username" name="username" maxlength="50" class="form-input" value="<?= old('username') ?>" placeholder="Ej: cajero">
+        <div class="md:col-span-2 mt-2 border-t border-gray-100 pt-5">
+            <h3 class="font-semibold text-gray-900"><i class="fa-solid fa-key text-orange-500 mr-2"></i>Cuenta de acceso</h3>
+            <p class="text-sm text-gray-500 mt-1">Opcional. Completa correo y contraseña para que el empleado pueda iniciar sesión. Si lo dejas vacío, el empleado se guardará sin cuenta de acceso.</p>
         </div>
 
         <div>
@@ -88,14 +88,11 @@
             <input type="password" id="password" name="password" class="form-input" placeholder="Mínimo 6 caracteres">
         </div>
 
-        <div>
-            <label for="role_id" class="form-label">Rol</label>
-            <select id="role_id" name="role_id" class="form-input">
-                <option value="">Sin cuenta de acceso</option>
-                <?php foreach ($roles as $role): ?>
-                    <option value="<?= (int) $role['id'] ?>" <?= (string) old('role_id') === (string) $role['id'] ? 'selected' : '' ?>><?= esc(ucfirst($role['name'])) ?></option>
-                <?php endforeach; ?>
-            </select>
+        <div class="md:col-span-2">
+            <label for="profile_photo" class="form-label">Foto de perfil</label>
+            <input type="file" id="profile_photo" name="profile_photo" accept="image/*" class="form-input file:mr-3 file:rounded-lg file:border-0 file:bg-orange-50 file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-orange-600 hover:file:bg-orange-100">
+            <p class="text-xs text-gray-400 mt-1">Opcional. JPG, PNG, WEBP o GIF, máximo 2 MB.</p>
+            <?php $cameraField = 'profile_photo'; require __DIR__ . '/../partials/camera_capture.php'; ?>
         </div>
 
         <div class="md:col-span-2 flex items-center gap-3 mt-2">

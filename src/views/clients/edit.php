@@ -11,7 +11,7 @@
     <div class="border-b border-gray-100 bg-gradient-to-r from-orange-50/80 to-white px-6 py-5">
         <h2 class="font-semibold text-gray-900"><i class="fa-solid fa-user text-orange-500 mr-2"></i>Información del cliente</h2>
     </div>
-    <form action="<?= url('clients/update/' . $client['id']) ?>" method="POST" class="px-6 py-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+    <form action="<?= url('clients/update/' . $client['id']) ?>" method="POST" enctype="multipart/form-data" class="px-6 py-6 grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
             <label for="name" class="form-label">Nombre <span class="text-red-500">*</span></label>
             <input type="text" id="name" name="name" class="form-input" value="<?= esc($client['name']) ?>" required>
@@ -20,6 +20,24 @@
         <div>
             <label for="last_name" class="form-label">Apellido <span class="text-red-500">*</span></label>
             <input type="text" id="last_name" name="last_name" class="form-input" value="<?= esc($client['last_name']) ?>" required>
+        </div>
+
+        <div>
+            <label for="id_document" class="form-label">DUI / NIT</label>
+            <input type="text" id="id_document" name="id_document" maxlength="30" class="form-input" value="<?= esc($client['id_document']) ?>" placeholder="Ej: 01234567-8">
+        </div>
+
+        <div>
+            <label for="client_type" class="form-label">Tipo de cliente <span class="text-red-500">*</span></label>
+            <select id="client_type" name="client_type" class="form-input">
+                <option value="persona" <?= $client['client_type'] === 'empresa' ? '' : 'selected' ?>>Persona natural</option>
+                <option value="empresa" <?= $client['client_type'] === 'empresa' ? 'selected' : '' ?>>Empresa / otro</option>
+            </select>
+        </div>
+
+        <div id="companyField" class="md:col-span-2 <?= $client['client_type'] === 'empresa' ? '' : 'hidden' ?>">
+            <label for="company_name" class="form-label">Nombre de la empresa <span class="text-red-500">*</span></label>
+            <input type="text" id="company_name" name="company_name" maxlength="150" class="form-input" value="<?= esc($client['company_name']) ?>" placeholder="Ej: Panadería del Valle, S.A. de C.V.">
         </div>
 
         <div>
@@ -50,6 +68,31 @@
             </select>
         </div>
 
+        <div class="md:col-span-2">
+            <label for="profile_photo" class="form-label">Foto de perfil</label>
+            <div class="flex items-center gap-4">
+                <?php if (!empty($client['profile_photo'])): ?>
+                    <img src="<?= esc($client['profile_photo']) ?>" alt="Foto de perfil actual"
+                         class="w-14 h-14 rounded-xl object-cover ring-1 ring-orange-100 shadow-sm">
+                <?php else: ?>
+                    <div class="w-14 h-14 rounded-xl bg-gradient-to-br from-orange-100 to-orange-50 text-orange-500 flex items-center justify-center ring-1 ring-orange-100 shadow-sm">
+                        <i class="fa-solid <?= $client['client_type'] === 'empresa' ? 'fa-building' : 'fa-user' ?>"></i>
+                    </div>
+                <?php endif; ?>
+                <div class="flex-1">
+                    <input type="file" id="profile_photo" name="profile_photo" accept="image/*" class="form-input file:mr-3 file:rounded-lg file:border-0 file:bg-orange-50 file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-orange-600 hover:file:bg-orange-100">
+                    <p class="text-xs text-gray-400 mt-1">Opcional. Si no eliges archivo se mantendrá la foto actual.</p>
+                    <?php $cameraField = 'profile_photo'; require __DIR__ . '/../partials/camera_capture.php'; ?>
+                </div>
+            </div>
+            <?php if (!empty($client['profile_photo'])): ?>
+                <label class="mt-2 inline-flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+                    <input type="checkbox" name="remove_profile_photo" value="1" class="rounded border-gray-300 text-orange-500 focus:ring-orange-200">
+                    Quitar foto actual
+                </label>
+            <?php endif; ?>
+        </div>
+
         <div class="md:col-span-2 flex items-center gap-3 mt-2">
             <button type="submit" class="inline-flex items-center gap-2 rounded-xl bg-orange-500 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-orange-500/25 hover:bg-orange-600 hover:shadow-orange-500/40 hover:-translate-y-px transition-all">
                 <i class="fa-solid fa-floppy-disk"></i> Actualizar Cliente
@@ -58,5 +101,23 @@
         </div>
     </form>
 </div>
+
+<script>
+    (function () {
+        const typeSelect = document.getElementById('client_type');
+        const companyField = document.getElementById('companyField');
+        const companyInput = document.getElementById('company_name');
+
+        function syncCompany() {
+            const isCompany = typeSelect.value === 'empresa';
+            companyField.classList.toggle('hidden', !isCompany);
+            companyInput.required = isCompany;
+            companyInput.disabled = !isCompany;
+        }
+
+        typeSelect.addEventListener('change', syncCompany);
+        syncCompany();
+    })();
+</script>
 
 <?php require_once __DIR__ . '/../layouts/footer.php'; ?>

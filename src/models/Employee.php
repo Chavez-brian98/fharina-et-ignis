@@ -10,13 +10,31 @@ class Employee
         $this->conn = $db;
     }
 
+    public static function roles()
+    {
+        return ['administrador', 'cajero', 'mesero', 'produccion', 'domiciliero', 'sub_jefe'];
+    }
+
+    public static function roleLabel($role)
+    {
+        $labels = [
+            'administrador' => 'Administrador',
+            'cajero' => 'Cajero',
+            'mesero' => 'Mesero',
+            'produccion' => 'Producción',
+            'domiciliero' => 'Domiciliero',
+            'sub_jefe' => 'Sub jefe',
+        ];
+
+        return $labels[$role] ?? null;
+    }
+
     public function getAll()
     {
-        $query = "SELECT e.id, e.name, e.last_name, e.id_document, e.username, e.email, e.role_id,
-                         e.phone, e.address, e.birth_date, e.hire_date, e.position, e.base_salary, e.status,
-                         r.name AS role_name, (e.password_hash IS NOT NULL) AS has_login
+        $query = "SELECT e.id, e.name, e.last_name, e.id_document, e.email, e.role,
+                         e.phone, e.address, e.profile_photo, e.birth_date, e.hire_date, e.base_salary, e.status,
+                         (e.password_hash IS NOT NULL) AS has_login
                     FROM " . $this->table . " e
-                    LEFT JOIN roles r ON r.id = e.role_id
                     ORDER BY e.last_name ASC, e.name ASC;";
 
         $stmt = $this->conn->prepare($query);
@@ -27,11 +45,10 @@ class Employee
 
     public function getById($id)
     {
-        $query = "SELECT e.id, e.name, e.last_name, e.id_document, e.username, e.email, e.role_id,
-                         e.phone, e.address, e.birth_date, e.hire_date, e.position, e.base_salary, e.status,
-                         r.name AS role_name, (e.password_hash IS NOT NULL) AS has_login
+        $query = "SELECT e.id, e.name, e.last_name, e.id_document, e.email, e.role,
+                         e.phone, e.address, e.profile_photo, e.birth_date, e.hire_date, e.base_salary, e.status,
+                         (e.password_hash IS NOT NULL) AS has_login
                     FROM " . $this->table . " e
-                    LEFT JOIN roles r ON r.id = e.role_id
                     WHERE e.id = :id
                     LIMIT 1;";
 
@@ -42,14 +59,6 @@ class Employee
         return $stmt->fetch();
     }
 
-    public function getAllRoles()
-    {
-        $stmt = $this->conn->prepare("SELECT id, name FROM roles ORDER BY id ASC;");
-        $stmt->execute();
-
-        return $stmt->fetchAll();
-    }
-
     public function documentExists($idDocument, $excludeId = null)
     {
         return $this->fieldExists('id_document', $idDocument, $excludeId);
@@ -58,11 +67,6 @@ class Employee
     public function emailExists($email, $excludeId = null)
     {
         return $this->fieldExists('email', $email, $excludeId);
-    }
-
-    public function usernameExists($username, $excludeId = null)
-    {
-        return $this->fieldExists('username', $username, $excludeId);
     }
 
     private function fieldExists($field, $value, $excludeId = null)
@@ -83,44 +87,42 @@ class Employee
         return (int) $row['total'] > 0;
     }
 
-    public function create($name, $last_name, $idDocument, $username, $email, $password_hash, $role_id, $phone, $address, $birth_date, $hire_date, $position, $baseSalary)
+    public function create($name, $last_name, $idDocument, $email, $password_hash, $role, $phone, $address, $birth_date, $hire_date, $baseSalary, $profilePhoto = null)
     {
-        $query = "INSERT INTO " . $this->table . "(name, last_name, id_document, username, email, password_hash, role_id, phone, address, birth_date, hire_date, position, base_salary)
-                    VALUES (:name, :last_name, :id_document, :username, :email, :password_hash, :role_id, :phone, :address, :birth_date, :hire_date, :position, :base_salary);";
+        $query = "INSERT INTO " . $this->table . "(name, last_name, id_document, email, password_hash, role, phone, address, profile_photo, birth_date, hire_date, base_salary)
+                    VALUES (:name, :last_name, :id_document, :email, :password_hash, :role, :phone, :address, :profile_photo, :birth_date, :hire_date, :base_salary);";
 
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':name', $name);
         $stmt->bindParam(':last_name', $last_name);
         $stmt->bindParam(':id_document', $idDocument);
-        $stmt->bindParam(':username', $username);
         $stmt->bindParam(':email', $email);
         $stmt->bindParam(':password_hash', $password_hash);
-        $stmt->bindParam(':role_id', $role_id, $role_id === null ? PDO::PARAM_NULL : PDO::PARAM_INT);
+        $stmt->bindParam(':role', $role, $role === null ? PDO::PARAM_NULL : PDO::PARAM_STR);
         $stmt->bindParam(':phone', $phone);
         $stmt->bindParam(':address', $address);
+        $stmt->bindParam(':profile_photo', $profilePhoto);
         $stmt->bindParam(':birth_date', $birth_date);
         $stmt->bindParam(':hire_date', $hire_date);
-        $stmt->bindParam(':position', $position);
         $stmt->bindParam(':base_salary', $baseSalary);
 
         return $stmt->execute();
     }
 
-    public function update($id, $name, $last_name, $idDocument, $username, $email, $password_hash, $role_id, $phone, $address, $birth_date, $hire_date, $position, $baseSalary, $status)
+    public function update($id, $name, $last_name, $idDocument, $email, $password_hash, $role, $phone, $address, $birth_date, $hire_date, $baseSalary, $status, $profilePhoto = null)
     {
         $query = "UPDATE " . $this->table . "
                     SET name = :name,
                         last_name = :last_name,
                         id_document = :id_document,
-                        username = :username,
                         email = :email,
                         password_hash = COALESCE(:password_hash, password_hash),
-                        role_id = :role_id,
+                        role = :role,
                         phone = :phone,
                         address = :address,
+                        profile_photo = :profile_photo,
                         birth_date = :birth_date,
                         hire_date = :hire_date,
-                        position = :position,
                         base_salary = :base_salary,
                         status = :status
                     WHERE id = :id;";
@@ -129,15 +131,14 @@ class Employee
         $stmt->bindParam(':name', $name);
         $stmt->bindParam(':last_name', $last_name);
         $stmt->bindParam(':id_document', $idDocument);
-        $stmt->bindParam(':username', $username);
         $stmt->bindParam(':email', $email);
         $stmt->bindParam(':password_hash', $password_hash, $password_hash === null ? PDO::PARAM_NULL : PDO::PARAM_STR);
-        $stmt->bindParam(':role_id', $role_id, $role_id === null ? PDO::PARAM_NULL : PDO::PARAM_INT);
+        $stmt->bindParam(':role', $role, $role === null ? PDO::PARAM_NULL : PDO::PARAM_STR);
         $stmt->bindParam(':phone', $phone);
         $stmt->bindParam(':address', $address);
+        $stmt->bindParam(':profile_photo', $profilePhoto);
         $stmt->bindParam(':birth_date', $birth_date);
         $stmt->bindParam(':hire_date', $hire_date);
-        $stmt->bindParam(':position', $position);
         $stmt->bindParam(':base_salary', $baseSalary);
         $stmt->bindParam(':status', $status);
         $stmt->bindParam(':id', $id, PDO::PARAM_INT);
