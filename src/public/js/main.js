@@ -211,6 +211,19 @@ document.addEventListener('DOMContentLoaded', function () {
     // ==========================================================================
     const modal = document.getElementById('detailModal');
 
+    // El panel se limita al alto de la ventana y el cuerpo scrollea internamente:
+    // con muchos campos (proveedores, productos) el modal ya no crece sin tope.
+    if (modal) {
+        const panel = modal.querySelector('.modal-panel');
+        if (panel) {
+            panel.classList.add('flex', 'flex-col', 'max-h-[88vh]');
+            const header = panel.firstElementChild;
+            if (header) header.classList.add('shrink-0');
+        }
+        const detailBody = document.getElementById('detailModalBody');
+        if (detailBody) detailBody.classList.add('overflow-y-auto', 'min-h-0');
+    }
+
     function openModal() {
         if (!modal) return;
         modal.classList.add('open');
@@ -297,7 +310,9 @@ document.addEventListener('DOMContentLoaded', function () {
                         + summaryBlock
                         + '</div>';
                 } else {
-                    mediaColumn = '<div class="relative shrink-0 w-full md:w-64 h-52 md:h-full md:min-h-60 rounded-2xl overflow-hidden ring-1 ring-orange-100 shadow-lg shadow-orange-100/60">' + mediaHtml + '</div>';
+                    // Sin data-summary el bloque de medios no se estira a lo alto
+                    // de la grilla: si no, queda un rectángulo enorme y vacío.
+                    mediaColumn = '<div class="relative shrink-0 w-full md:w-64 h-52 rounded-2xl overflow-hidden ring-1 ring-orange-100 shadow-lg shadow-orange-100/60">' + mediaHtml + '</div>';
                 }
 
                 body.innerHTML = '<div class="flex flex-col md:flex-row gap-6 items-start">'

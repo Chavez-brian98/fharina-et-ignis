@@ -59,6 +59,10 @@ $puedeAbrir = !$abierta;
             <p class="mt-3 inline-flex items-center gap-1.5 rounded-full bg-green-50 px-2.5 py-1 text-xs font-semibold text-green-700">
                 <i class="fa-solid fa-circle text-[6px]"></i> Abierta
             </p>
+            <a href="<?= url('cash_register/show/' . (int) $cur['id']) ?>"
+               class="mt-4 flex items-center justify-center gap-2 rounded-xl border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 transition-colors hover:bg-orange-50 hover:text-orange-600">
+                <i class="fa-solid fa-list-check"></i> Ver detalle completo
+            </a>
         </div>
 
         <div class="rounded-2xl bg-white border border-gray-100 shadow-lg shadow-gray-200/50 p-5">
@@ -97,11 +101,12 @@ $puedeAbrir = !$abierta;
             <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-3">Cajas abiertas ahora</p>
             <div class="flex flex-wrap gap-2">
                 <?php foreach ($cajasAbiertas as $c): ?>
-                    <span class="inline-flex items-center gap-2 rounded-xl bg-orange-50 px-3 py-2 text-sm font-medium text-orange-800 ring-1 ring-orange-100">
+                    <a href="<?= url('cash_register/show/' . (int) $c['id']) ?>"
+                       class="inline-flex items-center gap-2 rounded-xl bg-orange-50 px-3 py-2 text-sm font-medium text-orange-800 ring-1 ring-orange-100 transition-colors hover:bg-orange-100">
                         <i class="fa-solid fa-user-tie text-orange-500"></i>
                         <?= esc(trim($c['employee_name'] . ' ' . $c['employee_last_name'])) ?>
                         <span class="text-xs text-orange-500">#<?= (int) $c['id'] ?></span>
-                    </span>
+                    </a>
                 <?php endforeach; ?>
             </div>
         </div>
@@ -151,29 +156,6 @@ $puedeAbrir = !$abierta;
                     $emp = trim($item['opening_name'] . ' ' . $item['opening_last_name']);
                     $cerrada = $item['state'] === 'cerrada';
                     $diff = $cerrada ? (float) $item['difference'] : null;
-
-                    $detail = json_encode([
-                        'Caja' => '#' . $item['id'],
-                        'Empleado' => $emp,
-                        'Fecha' => date('d/m/Y', strtotime($item['cash_date'])),
-                        'Apertura' => substr((string) $item['opening_time'], 0, 5),
-                        'Cierre' => $cerrada ? substr((string) $item['closing_time'], 0, 5) : '—',
-                        'Fondo inicial' => '$' . number_format((float) $item['initial_amount'], 2),
-                        'Ventas en efectivo' => '$' . number_format((float) $item['cash_sales'], 2),
-                        'Ingresos / retiros' => '$' . number_format((float) $item['cash_movements'], 2),
-                        'Efectivo esperado' => '$' . number_format((float) $item['expected_cash'], 2),
-                        'Efectivo contado' => $cerrada ? '$' . number_format((float) $item['physical_final_amount'], 2) : '—',
-                        'Diferencia' => $cerrada ? '$' . number_format((float) $item['difference'], 2) : '—',
-                        'Cerró' => $item['closing_employee_id']
-                            ? trim($item['closing_name'] . ' ' . $item['closing_last_name'])
-                            : '—',
-                        'Reaperturas' => (int) $item['reopen_count'],
-                        'Motivo de reapertura' => $item['reopen_reason'] ?: '—',
-                        'Reabrió' => $item['reopened_by']
-                            ? trim($item['reopen_name'] . ' ' . $item['reopen_last_name'])
-                            : '—',
-                        'Estado' => $cerrada ? 'Cerrada' : 'Abierta',
-                    ], JSON_UNESCAPED_UNICODE);
                     ?>
                     <tr class="border-b border-gray-50 last:border-0 hover:bg-orange-50/40 transition-colors"
                         data-status="<?= esc($item['state']) ?>"
@@ -212,12 +194,9 @@ $puedeAbrir = !$abierta;
                         </td>
                         <td class="px-5 py-3.5">
                             <div class="flex items-center justify-end gap-1.5">
-                                <button type="button" class="btn-action btn-detail" title="Ver detalle"
-                                        data-title="Caja #<?= (int) $item['id'] ?>"
-                                        data-icon="fa-cash-register"
-                                        data-detail='<?= esc($detail) ?>'>
+                                <a class="btn-action" title="Ver detalle completo" href="<?= url('cash_register/show/' . $item['id']) ?>">
                                     <i class="fa-regular fa-eye"></i>
-                                </button>
+                                </a>
                                 <?php if ($cerrada && $puedeGestionar): ?>
                                     <button type="button" class="btn-action" title="Reabrir"
                                             data-caja-reopen="<?= (int) $item['id'] ?>">
@@ -416,15 +395,7 @@ $puedeAbrir = !$abierta;
 <?php endif; ?>
 
 <!-- ===================== MODAL: DETALLE ===================== -->
-<div class="modal-overlay" id="detailModal" data-plain>
-    <div class="modal-panel w-full max-w-2xl rounded-2xl bg-white shadow-2xl shadow-gray-800/20 ring-1 ring-black/5 overflow-hidden">
-        <div class="flex items-center justify-between bg-gradient-to-r from-orange-500 to-orange-400 px-6 py-4 text-white">
-            <h3 class="font-bold text-lg" id="detailModalTitle">Detalle de la caja</h3>
-            <button type="button" class="btn-close-modal text-white/80 hover:text-white text-xl leading-none">&times;</button>
-        </div>
-        <div class="px-6 py-5 bg-white" id="detailModalBody"></div>
-    </div>
-</div>
+<!-- El detalle completo vive en su propia vista: /cash_register/show/{id} -->
 
 <script>
     (function () {

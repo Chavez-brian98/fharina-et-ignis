@@ -49,7 +49,7 @@ return [
     ],
     'suppliers' => [
         'label' => 'Proveedores', 'group' => 'Operaciones', 'icon' => 'fa-truck',
-        'controller' => null, 'url' => null, 'placeholder' => '#suppliers',
+        'controller' => \SupplierController::class, 'url' => 'suppliers',
     ],
     'orders' => [
         'label' => 'Pedidos', 'group' => 'Operaciones', 'icon' => 'fa-cake-candles',

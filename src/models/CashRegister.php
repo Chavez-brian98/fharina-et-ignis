@@ -234,6 +234,100 @@ class CashRegister
      * `reopened_by` queda NULL en una apertura normal: esa columna solo
      * registra quién reabrió una caja previamente cerrada.
      */
+    /**
+     * Ventas de una caja con su desglose de pagos y sus artículos, para la
+     * vista de detalle. Cada venta trae `payments` e `items`.
+     */
+    public function getSales($id)
+    {
+        $stmt = $this->conn->prepare(
+            "SELECT v.id, v.sale_date, v.subtotal, v.total_discount, v.tax, v.total,
+                    v.payment_method, v.state,
+                    e.name AS employee_name, e.last_name AS employee_last_name,
+                    COALESCE(c.name, '') AS client_name, COALESCE(c.last_name, '') AS client_last_name,
+                    (SELECT COUNT(*) FROM sale_details sd WHERE sd.sale_id = v.id) AS items_count
+               FROM ventas v
+               LEFT JOIN empleados e ON e.id = v.employee_id
+               LEFT JOIN clients c ON c.id = v.client_id
+              WHERE v.cash_register_id = :id
+              ORDER BY v.sale_date ASC, v.id ASC;"
+        );
+        $stmt->bindParam(':id', $id, PDO::PARAM_INT);
+        $stmt->execute();
+
+        $ventas = $stmt->fetchAll();
+
+        if (!$ventas) {
+            return [];
+        }
+
+        $ids = array_map(function ($row) {
+            return (int) $row['id'];
+        }, $ventas);
+
+        // Placeholders reales (enteros casteados) para el IN().
+        $marcas = implode(',', array_fill(0, count($ids), '?'));
+
+        $pagos = $this->conn->prepare(
+            "SELECT sale_id, payment_method, SUM(amount) AS amount
+               FROM sale_payments
+              WHERE sale_id IN ($marcas)
+              GROUP BY sale_id, payment_method
+              ORDER BY sale_id, payment_method;"
+        );
+        $pagos->execute($ids);
+
+        $porVenta = [];
+
+        foreach ($pagos->fetchAll() as $pago) {
+            $porVenta[(int) $pago['sale_id']][] = $pago;
+        }
+
+        $items = $this->conn->prepare(
+            "SELECT sd.sale_id, sd.quantity, sd.unit_price, sd.discount, sd.subtotal,
+                    p.name AS product_name
+               FROM sale_details sd
+               LEFT JOIN productos p ON p.id = sd.product_id
+              WHERE sd.sale_id IN ($marcas)
+              ORDER BY sd.sale_id ASC, sd.id ASC;"
+        );
+        $items->execute($ids);
+
+        $itemsPorVenta = [];
+
+        foreach ($items->fetchAll() as $item) {
+            $itemsPorVenta[(int) $item['sale_id']][] = $item;
+        }
+
+        foreach ($ventas as $i => $venta) {
+            $sid = (int) $venta['id'];
+            $ventas[$i]['payments'] = $porVenta[$sid] ?? [];
+            $ventas[$i]['items'] = $itemsPorVenta[$sid] ?? [];
+        }
+
+        return $ventas;
+    }
+
+    /**
+     * Totales por método de pago de todas las ventas completadas de la caja,
+     * con el mismo criterio que usa getSummary().
+     */
+    public function getSalesTotals($id)
+    {
+        $totales = $this->conn->prepare(
+            "SELECT sp.payment_method, SUM(sp.amount) AS amount, COUNT(DISTINCT v.id) AS sales
+               FROM ventas v
+               JOIN sale_payments sp ON sp.sale_id = v.id
+              WHERE v.cash_register_id = :id AND v.state = 'completada'
+              GROUP BY sp.payment_method
+              ORDER BY sp.payment_method;"
+        );
+        $totales->bindParam(':id', $id, PDO::PARAM_INT);
+        $totales->execute();
+
+        return $totales->fetchAll();
+    }
+
     public function open($employeeId, $initialAmount)
     {
         $employeeId = (int) $employeeId;

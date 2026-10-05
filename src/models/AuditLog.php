@@ -46,6 +46,34 @@ class AuditLog
         }
     }
 
+    /**
+     * Bitácora de una caja concreta: acciones sobre la fila `caja` más los
+     * movimientos de efectivo (que se registran en su propia tabla pero llevan
+     * el id de la caja en new_data.caja).
+     */
+    public function getCajaTimeline($cajaId)
+    {
+        $cajaId = (int) $cajaId;
+        $cajaIdTexto = (string) $cajaId;
+
+        $stmt = $this->conn->prepare(
+            "SELECT l.id, l.action, l.description, l.old_data, l.new_data, l.created_at,
+                    e.name AS user_name, e.last_name AS user_last_name
+               FROM " . $this->table . " l
+               LEFT JOIN empleados e ON e.id = l.user_id
+              WHERE (l.table_name = 'caja' AND l.record_id = :id1)
+                 OR (l.table_name = 'cash_register_movements'
+                     AND JSON_UNQUOTE(JSON_EXTRACT(l.new_data, '$.caja')) = :id2)
+              ORDER BY l.id ASC;"
+        );
+        // bindParam exige variables por referencia: se castean antes.
+        $stmt->bindParam(':id1', $cajaId, PDO::PARAM_INT);
+        $stmt->bindParam(':id2', $cajaIdTexto);
+        $stmt->execute();
+
+        return $stmt->fetchAll();
+    }
+
     public function getAll($limit = 300)
     {
         $query = "SELECT l.id, l.user_id, l.action, l.table_name, l.record_id,

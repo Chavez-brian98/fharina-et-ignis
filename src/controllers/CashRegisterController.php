@@ -68,6 +68,62 @@ class CashRegisterController
     }
 
     /**
+     * Vista detallada de una caja: arqueo, desglose de ventas con sus
+     * artículos, movimientos de efectivo y bitácora de la caja.
+     *
+     * Sin permiso de gestión sólo se puede abrir una caja propia, igual que el
+     * listado (que en ese caso muestra únicamente las cajas del empleado).
+     */
+    public function show($id)
+    {
+        $id = (int) $id;
+        $caja = $this->registerModel->getSummary($id);
+
+        if (!$caja) {
+            flash('error', 'La caja no existe.');
+            header('Location: ' . url('cash_register'));
+            exit;
+        }
+
+        $employeeId = (int) ($_SESSION['user']['id'] ?? 0);
+        $puedeGestionar = puede('cash_register', 'edit');
+
+        if (!$puedeGestionar && (int) $caja['opening_employee_id'] !== $employeeId) {
+            flash('error', 'Sólo puedes ver el detalle de tus propias cajas.');
+            header('Location: ' . url('cash_register'));
+            exit;
+        }
+
+        $movimientos = $this->movementModel->getByRegister($id);
+        $ventas = $this->registerModel->getSales($id);
+        $totales = $this->registerModel->getSalesTotals($id);
+        $bitacora = $this->auditModel->getCajaTimeline($id);
+
+        $totalVentas = 0.0;
+        $totalArticulos = 0;
+        $anuladas = 0;
+
+        foreach ($ventas as $venta) {
+            if ($venta['state'] !== 'completada') {
+                $anuladas++;
+                continue;
+            }
+            $totalVentas += (float) $venta['total'];
+            $totalArticulos += (int) $venta['items_count'];
+        }
+
+        $title = 'Caja #' . $id;
+        $currentModule = 'cash_register';
+        $breadcrumbs = [
+            ['label' => 'Sistema', 'url' => url('dashboard')],
+            ['label' => 'Caja', 'url' => url('cash_register')],
+            ['label' => 'Caja #' . $id, 'url' => null],
+        ];
+
+        require_once __DIR__ . '/../views/cash_register/show.php';
+    }
+
+    /**
      * Abre una caja. Sin `employee_id` la abre el usuario en sesión (tras
      * revalidar su contraseña); con `employee_id` se la asigna a un cajero
      * concreto y eso exige el permiso Editar.

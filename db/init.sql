@@ -30,13 +30,21 @@ SET FOREIGN_KEY_CHECKS = 1;
 CREATE TABLE proveedores (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(120) NOT NULL,
+    tax_id VARCHAR(50),
     supplier_type VARCHAR(60),
     contact VARCHAR(100),
     phone VARCHAR(20),
     email VARCHAR(150),
     address VARCHAR(255),
+    supplies VARCHAR(255),
+    availability_days VARCHAR(60),
     payment_terms VARCHAR(150),
-    status ENUM('active','inactive') NOT NULL DEFAULT 'active'
+    notes TEXT,
+    status ENUM('active','inactive') NOT NULL DEFAULT 'active',
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_proveedores_name (name),
+    INDEX idx_proveedores_status (status)
 ) ENGINE=InnoDB;
 
 CREATE TABLE client_segments (
@@ -654,9 +662,9 @@ CREATE TABLE audit_logs (
 -- ----------------------------------------------------------------------------
 -- SEED DATA (datos de ejemplo)
 -- ----------------------------------------------------------------------------
-INSERT INTO proveedores (name, supplier_type, contact, phone, email, payment_terms) VALUES
-('Harinera Central', 'Harinera', 'María López', '2222-1111', 'ventas@harineracentral.com', '30 días'),
-('Lácteos Don Pepe', 'Lácteos', 'Pedro Martínez', '2333-2222', 'info@lacteosdonpepe.com', 'Contado');
+INSERT INTO proveedores (name, tax_id, supplier_type, contact, phone, email, address, supplies, availability_days, payment_terms, notes) VALUES
+('Harinera Central', '0614-2233345-6', 'Harinera', 'María López', '2222-1111', 'ventas@harineracentral.com', 'Av. Principal km 4, ruta al puerto', 'Harina de trigo, levadura, kraft', 'lun,mar,mie,jue,vie', '30 días', 'Entrega en la panadería antes de las 8:00 a.m.'),
+('Lácteos Don Pepe', '0614-5567788-2', 'Lácteos', 'Pedro Martínez', '2333-2222', 'info@lacteosdonpepe.com', 'Carretera al puerto, km 2', 'Leche, mantequilla, queso crema', 'mar,jue,sab', 'Contado', 'Refrigeración propia: dejar en cámara fría.');
 
 INSERT INTO ingredientes (name, unit_of_measure, current_stock, minimum_stock, unit_cost, main_supplier_id) VALUES
 ('Harina de trigo', 'kg', 50, 20, 1.20, 1),
@@ -732,7 +740,7 @@ INSERT INTO role_permissions (role_id, module, can_view, can_create, can_edit, c
 (2, 'categories', 1, 1, 1, 0),
 (2, 'inventory', 1, 0, 0, 0),
 (2, 'production', 1, 0, 0, 0),
-(2, 'suppliers', 1, 0, 0, 0),
+(2, 'suppliers', 1, 1, 1, 1),
 (2, 'orders', 1, 0, 0, 0),
 (2, 'promotions', 1, 0, 0, 0),
 (2, 'reports', 1, 0, 0, 0),

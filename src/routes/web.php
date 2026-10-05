@@ -31,6 +31,7 @@ return [
         'profile'    => ProfileController::class,
         'pos'        => PosController::class,
         'cash_register' => CashRegisterController::class,
+        'suppliers' => SupplierController::class,
         'clients'    => ClientController::class,
         'employees'  => EmployeeController::class,
         'roles'      => RoleController::class,
