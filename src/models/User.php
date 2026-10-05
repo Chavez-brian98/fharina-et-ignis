@@ -12,10 +12,13 @@ class User
     public function findByEmail($email)
     {
         $query = "SELECT e.id, e.name, e.last_name, e.email, e.password_hash, e.status,
-                         e.role, e.profile_photo
+                         e.profile_photo, e.role_id, r.name AS role, r.is_admin AS role_is_admin
                     FROM empleados e
+                    JOIN roles r ON r.id = e.role_id
                     WHERE e.email = :email
                       AND e.password_hash IS NOT NULL
+                      AND e.status = 'active'
+                      AND r.status = 'active'
                     LIMIT 1;";
 
         $stmt = $this->conn->prepare($query);
@@ -28,9 +31,11 @@ class User
     public function findById($id)
     {
         $query = "SELECT e.id, e.name, e.last_name, e.email, e.password_hash, e.status,
-                         e.role, e.phone, e.address, e.birth_date, e.profile_photo, e.hire_date,
-                         e.id_document
+                         e.phone, e.address, e.birth_date, e.profile_photo, e.hire_date,
+                         e.id_document, e.role_id, r.name AS role, r.is_admin AS role_is_admin,
+                         r.status AS role_status
                     FROM empleados e
+                    JOIN roles r ON r.id = e.role_id
                     WHERE e.id = :id
                     LIMIT 1;";
 

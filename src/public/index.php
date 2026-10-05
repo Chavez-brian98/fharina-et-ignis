@@ -23,6 +23,7 @@ $dotenv->load();
 require_once __DIR__ . '/../config/helpers.php';
 
 $db = (new Database())->getConnection();
+$GLOBALS['__db'] = $db;
 
 // Configuración global de la app (tabla settings), disponible vía setting().
 $GLOBALS['__settings'] = (new Setting($db))->getAll();
@@ -40,6 +41,16 @@ if (!$route['public'] && empty($_SESSION['user'])) {
 if ($route['controller'] === null) {
     http_response_code(404);
     echo '<h1>404 - Página no encontrada</h1>';
+    exit;
+}
+
+// Control de permisos por módulo y acción (roles + excepciones por empleado).
+$routeModule = Permiso::moduloDeControlador($route['controller']);
+
+if ($routeModule !== null && !puede($routeModule, Permiso::accionDeRuta($route['action']))) {
+    http_response_code(403);
+    $GLOBALS['__route_module'] = $routeModule;
+    require __DIR__ . '/../views/errors/403.php';
     exit;
 }
 

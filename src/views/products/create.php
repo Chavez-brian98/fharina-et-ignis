@@ -82,6 +82,13 @@
         </div>
 
         <div class="md:col-span-2">
+            <label for="gallery_images" class="form-label">Galería de fotos</label>
+            <input type="file" id="gallery_images" name="gallery_images[]" accept="image/*" multiple data-gallery class="form-input">
+            <p class="text-xs text-gray-400 mt-1.5">Opcional. Añade varias fotos que se mostrarán en la página pública del producto. Puedes seleccionarlas a la vez o tomarlas con la cámara.</p>
+            <?php $cameraField = 'gallery_images'; require __DIR__ . '/../partials/camera_capture.php'; ?>
+        </div>
+
+        <div class="md:col-span-2">
             <label for="description" class="form-label">Descripción</label>
             <textarea id="description" name="description" class="form-input" rows="3"><?= old('description') ?></textarea>
         </div>

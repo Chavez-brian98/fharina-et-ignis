@@ -13,7 +13,7 @@
         <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
         <input type="text" id="searchInput"
                class="w-full rounded-xl border border-gray-200 bg-white pl-10 pr-4 py-2.5 text-sm shadow-sm shadow-gray-200/60 outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100 transition"
-               placeholder="Buscar por nombre, DUI/NIT, empresa, correo, teléfono o dirección...">
+               placeholder="Buscar por nombre, DUI, empresa, correo, teléfono o dirección...">
     </div>
     <div>
         <select id="filterCategory" class="search-filter w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm shadow-sm shadow-gray-200/60 outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100">
@@ -39,7 +39,7 @@
                 <tr class="border-b border-gray-100 text-left text-xs uppercase tracking-wider text-gray-400">
                     <th class="px-5 py-3 font-semibold">Cliente</th>
                     <th class="px-5 py-3 font-semibold">Tipo</th>
-                    <th class="px-5 py-3 font-semibold">DUI / NIT</th>
+                    <th class="px-5 py-3 font-semibold">DUI</th>
                     <th class="px-5 py-3 font-semibold">Teléfono</th>
                     <th class="px-5 py-3 font-semibold">Correo</th>
                     <th class="px-5 py-3 font-semibold">Dirección</th>
@@ -50,24 +50,30 @@
             </thead>
             <tbody id="crudTableBody">
                 <?php foreach ($clients as $item):
+                    $personName = trim($item['name'] . ' ' . ($item['last_name'] ?? ''));
                     $fullName = $item['client_type'] === 'empresa'
                         ? ($item['company_name'] ?: $item['name'])
-                        : $item['name'] . ($item['last_name'] ? ' ' . $item['last_name'] : '');
+                        : ($personName !== '' ? $personName : $item['name']);
                     $typeLabel = $item['client_type'] === 'empresa' ? 'Empresa' : 'Persona';
+                    $summary = [];
+                    $summary['Nombre'] = $item['client_type'] === 'empresa' ? ($personName !== '' ? $personName : $fullName) : $fullName;
+                    if ($item['client_type'] === 'empresa') {
+                        $summary['Empresa'] = $item['company_name'] ?: '—';
+                    }
+                    $summary['Edad'] = $item['birth_date'] ? (edadDesde($item['birth_date']) . ' años') : '—';
+                    $summaryJson = json_encode($summary, JSON_UNESCAPED_UNICODE);
                     $detailRows = [
                         'ID' => $item['id'],
-                        'Nombre' => $fullName,
                         'Tipo' => $typeLabel,
-                        'DUI / NIT' => $item['id_document'] ?: '—',
-                    ];
-                    if ($item['client_type'] === 'empresa') {
-                        $detailRows['Empresa'] = $item['company_name'] ?: '—';
-                    }
-                    $detailRows += [
+                        'DUI' => $item['id_document'] ?: '—',
                         'Teléfono' => $item['phone'] ?: '—',
                         'Correo' => $item['email'] ?: '—',
                         'Dirección' => $item['address'] ?: '—',
-                        'Fecha de nacimiento' => ($item['client_type'] !== 'empresa' && $item['birth_date']) ? date('d/m/Y', strtotime($item['birth_date'])) : '—',
+                    ];
+                    if ($item['birth_date']) {
+                        $detailRows['Fecha de nacimiento'] = date('d/m/Y', strtotime($item['birth_date']));
+                    }
+                    $detailRows += [
                         'Fecha de registro' => date('d/m/Y', strtotime($item['registration_date'])),
                         'Estado' => $item['status'] === 'active' ? 'Activo' : 'Inactivo',
                     ];
@@ -121,6 +127,7 @@
                                     data-title="<?= esc($fullName) ?>"
                                     data-image="<?= esc($item['profile_photo'] ?? '') ?>"
                                     data-icon="<?= $item['client_type'] === 'empresa' ? 'fa-building' : 'fa-user' ?>"
+                                    data-summary='<?= esc($summaryJson) ?>'
                                     data-detail='<?= esc($detail) ?>'>
                                 <i class="fa-regular fa-eye"></i>
                             </button>

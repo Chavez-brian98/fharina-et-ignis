@@ -42,6 +42,15 @@ class SettingsController
             $this->settingModel->update($key, trim($_POST[$key] ?? ''));
         }
 
+        // Fondo base con el que se abre una caja (debe ser un monto positivo).
+        $baseAmount = str_replace(',', '', trim($_POST['cash_register_base'] ?? ''));
+        if ($baseAmount !== '' && (!is_numeric($baseAmount) || (float) $baseAmount < 0)) {
+            flash('error', 'El fondo base de caja debe ser un monto válido mayor o igual a cero.');
+            header('Location: ' . url('settings'));
+            exit;
+        }
+        $this->settingModel->update('cash_register_base', number_format((float) $baseAmount, 2, '.', ''));
+
         // system_name siempre refleja el nombre del negocio (en producción solo
         // se muestra el nombre del negocio, no el del sistema).
         $this->settingModel->update('system_name', trim($_POST['business_name'] ?? ''));

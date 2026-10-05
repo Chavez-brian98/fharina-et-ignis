@@ -1,5 +1,17 @@
 <?php require_once __DIR__ . '/../layouts/sidebar.php'; ?>
 
+<?php
+$accionesPermiso = Permiso::acciones();
+
+// Lo que otorga cada rol (para repintar la matriz al cambiar el rol en el modal).
+$permisosPorRol = [];
+$rolesAdmin = [];
+foreach ($roles as $rol) {
+    $permisosPorRol[(string) $rol['id']] = Permiso::permisosBaseDeRol($rol['id'], $rol['status'] === 'active');
+    $rolesAdmin[(string) $rol['id']] = (int) $rol['is_admin'] === 1 ? 1 : 0;
+}
+?>
+
 <div class="flex items-center justify-between mb-6">
     <h1 class="text-2xl font-bold text-gray-900">Empleados</h1>
     <a href="<?= url('employees/create') ?>" class="inline-flex items-center gap-2 rounded-xl bg-orange-500 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-orange-500/25 hover:bg-orange-600 hover:shadow-orange-500/40 hover:-translate-y-px transition-all">
@@ -42,18 +54,34 @@
             <tbody id="crudTableBody">
                 <?php foreach ($employees as $item):
                     $fullName = $item['name'] . ($item['last_name'] ? ' ' . $item['last_name'] : '');
+                    $summary = json_encode([
+                        'Nombre' => $fullName,
+                        'Rol' => Employee::roleLabel($item['role']),
+                        'Edad' => $item['birth_date'] ? (edadDesde($item['birth_date']) . ' años') : '—',
+                    ], JSON_UNESCAPED_UNICODE);
                     $detail = json_encode([
                         'ID' => $item['id'],
-                        'Nombre' => $fullName,
                         'DUI' => $item['id_document'],
                         'Correo' => $item['email'] ?: '—',
-                        'Rol' => Employee::roleLabel($item['role']),
                         'Teléfono' => $item['phone'] ?: '—',
                         'Dirección' => $item['address'] ?: '—',
                         'Fecha de nacimiento' => $item['birth_date'] ? date('d/m/Y', strtotime($item['birth_date'])) : '—',
                         'Fecha de contratación' => date('d/m/Y', strtotime($item['hire_date'])),
                         'Salario base' => '$' . number_format($item['base_salary'], 2),
                         'Estado' => $item['status'] === 'active' ? 'Activo' : 'Inactivo',
+                    ], JSON_UNESCAPED_UNICODE);
+
+                    // Payload del modal: permisos del rol + excepciones específicas del empleado.
+                    $overrides = Permiso::permisosDeEmpleado($item['id']);
+
+                    $permisosPayload = json_encode([
+                        'url' => url('employees/updatePermisos/' . $item['id']),
+                        'titulo' => 'Permisos de ' . $fullName,
+                        'admin' => (int) ($item['role_is_admin'] ?? 0) === 1,
+                        'rolId' => (int) $item['role_id'],
+                        'overrides' => (object) $overrides,
+                        'permsPorRol' => $permisosPorRol,
+                        'rolesAdmin' => $rolesAdmin,
                     ], JSON_UNESCAPED_UNICODE);
                 ?>
                 <tr class="border-b border-gray-50 last:border-0 hover:bg-orange-50/40 transition-colors"
@@ -97,10 +125,15 @@
                     </td>
                     <td class="px-5 py-3.5">
                         <div class="flex items-center justify-end gap-1.5">
+                            <button type="button" class="btn-action btn-perms" title="Administrar permisos"
+                                    data-perms="<?= esc($permisosPayload) ?>">
+                                <i class="fa-solid fa-shield-halved text-orange-500"></i>
+                            </button>
                             <button type="button" class="btn-action btn-detail" title="Ver detalle"
                                     data-title="<?= esc($fullName) ?>"
                                     data-image="<?= esc($item['profile_photo'] ?? '') ?>"
                                     data-icon="fa-user-tie"
+                                    data-summary='<?= esc($summary) ?>'
                                     data-detail='<?= esc($detail) ?>'>
                                 <i class="fa-regular fa-eye"></i>
                             </button>
@@ -146,5 +179,8 @@
         <div class="px-6 py-5 bg-white" id="detailModalBody"></div>
     </div>
 </div>
+
+<!-- Modal de permisos por empleado -->
+<?php $matrixConfig = ['modo' => 'empleado', 'conBloqueo' => true, 'roles' => $roles]; require __DIR__ . '/../partials/matrix_permisos.php'; ?>
 
 <?php require_once __DIR__ . '/../layouts/footer.php'; ?>

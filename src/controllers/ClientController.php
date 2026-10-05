@@ -62,12 +62,6 @@ class ClientController
         $birth_date = $birth_date !== '' ? $birth_date : null;
 
         if ($clientType === 'empresa') {
-            $name = $companyName;
-            $last_name = '';
-            $birth_date = null;
-        }
-
-        if ($clientType === 'empresa') {
             if ($companyName === '') {
                 flash('error', 'Ingresa el nombre de la empresa.');
                 header('Location: ' . url('clients/create'));
@@ -83,6 +77,12 @@ class ClientController
 
         if ($email !== '' && $this->clientModel->emailExists($email)) {
             flash('error', 'Ya existe un cliente registrado con ese correo.');
+            header('Location: ' . url('clients/create'));
+            exit;
+        }
+
+        if ($idDocument !== '' && !validar_dui($idDocument)) {
+            flash('error', 'El DUI debe tener el formato 00000000-0 (8 dígitos, guion y un dígito).');
             header('Location: ' . url('clients/create'));
             exit;
         }
@@ -155,12 +155,6 @@ class ClientController
         $status = $_POST['status'] ?? 'active';
 
         if ($clientType === 'empresa') {
-            $name = $companyName;
-            $last_name = '';
-            $birth_date = null;
-        }
-
-        if ($clientType === 'empresa') {
             if ($companyName === '') {
                 flash('error', 'Ingresa el nombre de la empresa.');
                 header('Location: ' . url('clients/edit/' . $id));
@@ -176,6 +170,12 @@ class ClientController
 
         if ($email !== '' && $this->clientModel->emailExists($email, $id)) {
             flash('error', 'Ya existe otro cliente registrado con ese correo.');
+            header('Location: ' . url('clients/edit/' . $id));
+            exit;
+        }
+
+        if ($idDocument !== '' && !validar_dui($idDocument)) {
+            flash('error', 'El DUI debe tener el formato 00000000-0 (8 dígitos, guion y un dígito).');
             header('Location: ' . url('clients/edit/' . $id));
             exit;
         }

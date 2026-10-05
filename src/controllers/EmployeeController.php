@@ -1,24 +1,29 @@
 <?php
 
 require_once __DIR__ . '/../models/Employee.php';
+require_once __DIR__ . '/../models/Role.php';
+require_once __DIR__ . '/../models/Permiso.php';
 require_once __DIR__ . '/../models/AuditLog.php';
 
 class EmployeeController
 {
     private $db;
     private $employeeModel;
+    private $roleModel;
     private $auditModel;
 
     public function __construct($db)
     {
         $this->db = $db;
         $this->employeeModel = new Employee($db);
+        $this->roleModel = new Role($db);
         $this->auditModel = new AuditLog($db);
     }
 
     public function index()
     {
         $employees = $this->employeeModel->getAll();
+        $roles = $this->roleModel->getAll();
         $title = 'Empleados';
         $currentModule = 'employees';
         $breadcrumbs = [
@@ -31,7 +36,7 @@ class EmployeeController
 
     public function create()
     {
-        $roles = Employee::roles();
+        $roles = $this->roleModel->getAllForSelect();
         $title = 'Nuevo Empleado';
         $currentModule = 'employees';
         $breadcrumbs = [
@@ -62,6 +67,12 @@ class EmployeeController
 
         if ($name === '' || $last_name === '' || $idDocument === '' || $hire_date === '' || $baseSalary === '') {
             flash('error', 'Los campos nombre, apellido, DUI, fecha de contratación y salario base son obligatorios.');
+            header('Location: ' . url('employees/create'));
+            exit;
+        }
+
+        if (!validar_dui($idDocument)) {
+            flash('error', 'El DUI debe tener el formato 00000000-0 (8 dígitos, guion y un dígito).');
             header('Location: ' . url('employees/create'));
             exit;
         }
@@ -100,11 +111,11 @@ class EmployeeController
             exit;
         }
 
-        if ($this->employeeModel->create($name, $last_name, $idDocument, $login['email'], $login['password_hash'], $login['role'], $phone ?: null, $address ?: null, $birth_date, $hire_date, $baseSalary, $profilePhoto)) {
+        if ($this->employeeModel->create($name, $last_name, $idDocument, $login['email'], $login['password_hash'], $login['role_id'], $phone ?: null, $address ?: null, $birth_date, $hire_date, $baseSalary, $profilePhoto)) {
             $recordId = (int) $this->db->lastInsertId();
             $new = $this->employeeModel->getById($recordId);
             $this->auditModel->write('create', 'empleados', $recordId, null, $new ?: null, 'Empleado creado.');
-            flash('success', 'Empleado creado correctamente.');
+            flash('success', 'Empleado creado correctamente. Ya podés ajustar sus permisos desde el ícono del escudo.');
         } else {
             flash('error', 'No se pudo crear el empleado.');
         }
@@ -123,7 +134,7 @@ class EmployeeController
             exit;
         }
 
-        $roles = Employee::roles();
+        $roles = $this->roleModel->getAll();
         $title = 'Editar Empleado';
         $currentModule = 'employees';
         $breadcrumbs = [
@@ -167,6 +178,12 @@ class EmployeeController
             exit;
         }
 
+        if (!validar_dui($idDocument)) {
+            flash('error', 'El DUI debe tener el formato 00000000-0 (8 dígitos, guion y un dígito).');
+            header('Location: ' . url('employees/edit/' . $id));
+            exit;
+        }
+
         if ($baseSalary < 0) {
             flash('error', 'El salario base no puede ser negativo.');
             header('Location: ' . url('employees/edit/' . $id));
@@ -205,9 +222,10 @@ class EmployeeController
             $profilePhoto = isset($_POST['remove_profile_photo']) ? null : (($employee['profile_photo'] ?? null) ?: null);
         }
 
-        if ($this->employeeModel->update($id, $name, $last_name, $idDocument, $login['email'], $login['password_hash'], $login['role'], $phone ?: null, $address ?: null, $birth_date, $hire_date, $baseSalary, $status, $profilePhoto)) {
+        if ($this->employeeModel->update($id, $name, $last_name, $idDocument, $login['email'], $login['password_hash'], $login['role_id'], $phone ?: null, $address ?: null, $birth_date, $hire_date, $baseSalary, $status, $profilePhoto)) {
             $after = $this->employeeModel->getById($id);
             $this->auditModel->write('update', 'empleados', $id, $employee, $after ?: null, 'Empleado actualizado.');
+
             flash('success', 'Empleado actualizado correctamente.');
         } else {
             flash('error', 'No se pudo actualizar el empleado.');
@@ -217,11 +235,113 @@ class EmployeeController
         exit;
     }
 
+    /**
+     * Guarda desde el modal de la lista el rol del empleado y su matriz de
+     * permisos específicos (checkboxes). Un módulo con «Bloquear» marcado queda
+     * denegado por completo; sin marcar nada, el módulo se hereda del rol.
+ */
+public function updatePermisos($id)
+    {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . url('employees'));
+            exit;
+        }
+
+        $employee = $this->employeeModel->getById($id);
+
+        if (!$employee) {
+            flash('error', 'Empleado no encontrado.');
+            header('Location: ' . url('employees'));
+            exit;
+        }
+
+        $roleId = isset($_POST['role_id']) && $_POST['role_id'] !== '' ? (int) $_POST['role_id'] : null;
+
+        if ($roleId === null || $this->roleModel->getById($roleId) === false) {
+            flash('error', 'El rol seleccionado no existe.');
+            header('Location: ' . url('employees'));
+            exit;
+        }
+
+        if ((int) ($employee['role_is_admin'] ?? 0) === 1 && (int) $employee['role_id'] !== $roleId) {
+            flash('error', 'No se puede cambiar el rol de un administrador sin antes quitarle el acceso total.');
+            header('Location: ' . url('employees'));
+            exit;
+        }
+
+        $antes = Permiso::permisosDeEmpleado($id);
+        $this->employeeModel->setRole($id, $roleId);
+
+        // El modal envía la matriz sólo si se llegó a mostrarla (p. ej. no se
+        // manda cuando el rol elegido es de acceso total): si no llegó, las
+        // excepciones guardadas se dejan intactas.
+        $hayMatriz = ($_POST['perm_matrix'] ?? '') === '1';
+
+        if ($hayMatriz) {
+            Permiso::guardarPermisosDeEmpleado($id, $this->permisosDesdeChecks());
+        }
+
+        $despues = $hayMatriz ? Permiso::permisosDeEmpleado($id) : $antes;
+
+        $cambioRol = (int) $employee['role_id'] !== $roleId;
+
+        if ($cambioRol || $antes !== $despues) {
+            $nuevo = $this->employeeModel->getById($id);
+            $this->auditModel->write(
+                'update',
+                'employee_permissions',
+                $id,
+                ['rol' => $employee['role'], 'permisos' => self::describeOverrides($antes)],
+                ['rol' => $nuevo['role'] ?? $employee['role'], 'permisos' => self::describeOverrides($despues)],
+                'Rol y permisos actualizados desde la matriz del empleado.'
+            );
+            flash('success', 'Permisos de «' . trim($employee['name'] . ' ' . $employee['last_name']) . '» actualizados.');
+        } else {
+            flash('info', 'No hubo cambios en los permisos de «' . trim($employee['name'] . ' ' . $employee['last_name']) . '».');
+        }
+
+        header('Location: ' . url('employees'));
+        exit;
+    }
+
+/**
+     * Traduce la matriz de checkboxes del modal a la estructura de overrides:
+     * «Bloquear» marcado = módulo denegado; alguna acción marcada = permiso
+     * específico concedido; nada marcado = se hereda del rol (no hay fila).
+     * Un módulo sin «Ver» marcado no genera fila: las otras acciones dependen de
+     * Ver, así que se ignoran en vez de bloquear el módulo por error.
+     */
+    private function permisosDesdeChecks()
+    {
+        $map = [];
+
+        foreach (Permiso::modulos() as $key => $modulo) {
+            if (isset($_POST['bloqueo_' . $key])) {
+                $map[$key] = ['view' => false, 'create' => false, 'edit' => false, 'delete' => false];
+                continue;
+            }
+
+            if (!isset($_POST['perm_' . $key . '_view'])) {
+                continue;
+            }
+
+            $perm = ['view' => true];
+
+            foreach (['create', 'edit', 'delete'] as $accion) {
+                $perm[$accion] = isset($_POST['perm_' . $key . '_' . $accion]);
+            }
+
+            $map[$key] = $perm;
+        }
+
+        return $map;
+    }
+
     private function resolveLogin($existing, $isCreate, &$errorMessage)
     {
-        $role = isset($_POST['role']) && $_POST['role'] !== '' ? $_POST['role'] : null;
+        $roleId = isset($_POST['role_id']) && $_POST['role_id'] !== '' ? (int) $_POST['role_id'] : null;
 
-        if ($role === null || !in_array($role, Employee::roles(), true)) {
+        if ($roleId === null || $this->roleModel->getById($roleId) === false) {
             $errorMessage = 'Selecciona un rol válido para el empleado.';
             return false;
         }
@@ -230,7 +350,7 @@ class EmployeeController
         $password = $_POST['password'] ?? '';
 
         if ($email === '' && $password === '') {
-            return ['email' => null, 'password_hash' => null, 'role' => $role];
+            return ['email' => null, 'password_hash' => null, 'role_id' => $roleId];
         }
 
         if ($email === '') {
@@ -256,8 +376,33 @@ class EmployeeController
         return [
             'email' => $email,
             'password_hash' => $password !== '' ? password_hash($password, PASSWORD_DEFAULT) : null,
-            'role' => $role,
+            'role_id' => $roleId,
         ];
+    }
+
+    /**
+     * Convierte los overrides a texto legible para la bitácora.
+     */
+    private static function describeOverrides(array $overrides)
+    {
+        $catalog = Permiso::modulos();
+        $acciones = Permiso::acciones();
+        $descripcion = [];
+
+        foreach ($overrides as $module => $perm) {
+            $label = $catalog[$module]['label'] ?? $module;
+            $concedidas = [];
+
+            foreach ($acciones as $action => $accionLabel) {
+                if (!empty($perm[$action])) {
+                    $concedidas[] = $accionLabel;
+                }
+            }
+
+            $descripcion[$label] = $concedidas ? implode(', ', $concedidas) : 'Sin acceso';
+        }
+
+        return $descripcion;
     }
 
     public function toggle($id)

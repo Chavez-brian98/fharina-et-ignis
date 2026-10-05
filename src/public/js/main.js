@@ -15,7 +15,18 @@ document.addEventListener('DOMContentLoaded', function () {
             return;
         }
         const message = flashToast.getAttribute('data-message') || '';
-        const isError = flashToast.getAttribute('data-type') === 'error';
+        // success, error, info (azul) y warning (ambar). Los sobrantes usan el
+        // verde de exito para que ningun flash se muestre neutro.
+        const palette = {
+            error: '#dc2626',
+            info: '#2563eb',
+            warning: '#d97706'
+        };
+        const type = flashToast.getAttribute('data-type');
+        const background = palette[type] || '#16a34a';
+        const r = parseInt(background.slice(1, 3), 16);
+        const g = parseInt(background.slice(3, 5), 16);
+        const b = parseInt(background.slice(5, 7), 16);
         Toastify({
             text: message,
             duration: 3500,
@@ -24,11 +35,9 @@ document.addEventListener('DOMContentLoaded', function () {
             close: true,
             stopOnFocus: true,
             style: {
-                background: isError ? '#dc2626' : '#16a34a',
+                background: background,
                 borderRadius: '12px',
-                boxShadow: isError
-                    ? '0 10px 30px -6px rgba(220, 38, 58, 0.4)'
-                    : '0 10px 30px -6px rgba(22, 163, 74, 0.4)',
+                boxShadow: '0 10px 30px -6px rgba(' + r + ', ' + g + ', ' + b + ', 0.4)',
                 fontFamily: 'inherit',
                 fontSize: '14px',
                 fontWeight: '600'
@@ -186,6 +195,18 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 
     // ==========================================================================
+    // MÁSCARA DUI: solo dígitos, formato 00000000-0
+    // ==========================================================================
+    document.body.addEventListener('input', function (e) {
+        const t = e.target;
+        if (!(t instanceof HTMLInputElement) || !t.dataset.dui) return;
+        let d = t.value.replace(/[^\d]/g, '');
+        if (d.length > 9) d = d.slice(0, 9);
+        if (d.length > 8) d = d.slice(0, 8) + '-' + d.slice(8);
+        if (t.value !== d) t.value = d;
+    });
+
+    // ==========================================================================
     // MODAL DE DETALLE (fondo con blur)
     // ==========================================================================
     const modal = document.getElementById('detailModal');
@@ -213,6 +234,12 @@ document.addEventListener('DOMContentLoaded', function () {
                 const title = detailBtn.getAttribute('data-title') || 'Detalle';
                 const image = detailBtn.getAttribute('data-image') || '';
                 const icon = detailBtn.getAttribute('data-icon') || 'fa-circle-info';
+                const detailHtml = detailBtn.getAttribute('data-detail-html') || '';
+                let summary = null;
+                const summaryRaw = detailBtn.getAttribute('data-summary');
+                if (summaryRaw) {
+                    try { summary = JSON.parse(summaryRaw); } catch (err) { summary = null; }
+                }
 
                 let mediaHtml = '<div class="w-full h-full flex items-center justify-center bg-gradient-to-br from-orange-100 to-orange-50">';
                 if (image) {
@@ -224,11 +251,32 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
                 mediaHtml += '</div>';
 
+                let summaryBlock = '';
+                if (summary) {
+                    summaryBlock = '<div class="rounded-2xl bg-white px-4 py-3.5 ring-1 ring-gray-100 shadow-sm space-y-3">';
+                    for (const key in summary) {
+                        const sv = (summary[key] !== null && summary[key] !== '' && summary[key] !== undefined) ? summary[key] : '—';
+                        if (key === 'Nombre') {
+                            summaryBlock += '<div><span class="block text-[11px] font-bold uppercase tracking-wider text-gray-400">Nombre</span>'
+                                + '<span class="block text-base font-bold text-gray-900 leading-snug break-words">' + sv + '</span></div>';
+                        } else if (key === 'Edad') {
+                            summaryBlock += '<div class="flex items-center justify-between"><span class="text-[11px] font-bold uppercase tracking-wider text-gray-400">Edad</span>'
+                                + (sv !== '—' ? '<span class="inline-flex items-center rounded-full bg-green-50 ring-1 ring-green-200 text-green-700 px-2.5 py-0.5 text-xs font-bold">' + sv + '</span>' : '<span class="text-sm text-gray-400">' + sv + '</span>')
+                                + '</div>';
+                        } else {
+                            summaryBlock += '<div><span class="block text-[11px] font-bold uppercase tracking-wider text-gray-400">' + key + '</span>'
+                                + '<span class="block text-sm font-semibold text-gray-700 leading-snug break-words">' + sv + '</span></div>';
+                        }
+                    }
+                    summaryBlock += '</div>';
+                }
+
                 const plain = modal.getAttribute('data-plain') !== null;
 
                 let fields = '';
                 for (const key in data) {
                     if (key === 'ID') continue;
+                    if (summary && summary[key] !== undefined) continue;
                     const rawVal = data[key];
                     const val = (rawVal !== null && rawVal !== '' && rawVal !== undefined) ? rawVal : '—';
                     const isLong = key === 'Nombre' || key === 'Descripción' || key === 'Dirección' || String(val).length > 30;
@@ -240,10 +288,23 @@ document.addEventListener('DOMContentLoaded', function () {
                         + '</div>';
                 }
 
-                body.innerHTML = '<div class="flex flex-col md:flex-row gap-6">'
-                    + (plain ? '' : '<div class="relative shrink-0 w-full md:w-64 h-52 md:h-full md:min-h-60 rounded-2xl overflow-hidden ring-1 ring-orange-100 shadow-lg shadow-orange-100/60">' + mediaHtml + '</div>')
+                let mediaColumn;
+                if (plain) {
+                    mediaColumn = '';
+                } else if (summary) {
+                    mediaColumn = '<div class="shrink-0 w-full md:w-64 flex flex-col gap-4 min-w-0">'
+                        + '<div class="relative w-full h-52 rounded-2xl overflow-hidden ring-1 ring-orange-100 shadow-lg shadow-orange-100/60">' + mediaHtml + '</div>'
+                        + summaryBlock
+                        + '</div>';
+                } else {
+                    mediaColumn = '<div class="relative shrink-0 w-full md:w-64 h-52 md:h-full md:min-h-60 rounded-2xl overflow-hidden ring-1 ring-orange-100 shadow-lg shadow-orange-100/60">' + mediaHtml + '</div>';
+                }
+
+                body.innerHTML = '<div class="flex flex-col md:flex-row gap-6 items-start">'
+                    + mediaColumn
                     + '<div class="flex-1 grid grid-cols-1 min-[480px]:grid-cols-2 gap-3 content-start min-w-0">' + fields + '</div>'
-                    + '</div>';
+                    + '</div>'
+                    + detailHtml;
 
                 if (titleEl) titleEl.textContent = title;
             }
@@ -349,6 +410,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
                 try {
                     const dt = new DataTransfer();
+                    if (camTarget.hasAttribute('data-gallery') && camTarget.files) {
+                        for (const f of camTarget.files) dt.items.add(f);
+                    }
                     dt.items.add(file);
                     camTarget.files = dt.files;
                 } catch (err) {}

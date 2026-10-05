@@ -30,8 +30,10 @@ return [
         'settings'   => SettingsController::class,
         'profile'    => ProfileController::class,
         'pos'        => PosController::class,
+        'cash_register' => CashRegisterController::class,
         'clients'    => ClientController::class,
         'employees'  => EmployeeController::class,
+        'roles'      => RoleController::class,
         'audit'      => AuditController::class,
     ],
 

@@ -72,6 +72,12 @@
                     <label for="tax_rate" class="form-label">Impuesto (%)</label>
                     <input type="number" id="tax_rate" name="tax_rate" class="form-input" value="<?= esc($settings['tax_rate'] ?? '0') ?>" min="0" max="100" step="0.01">
                 </div>
+                <div class="md:col-span-1">
+                    <label for="cash_register_base" class="form-label">Fondo base de caja</label>
+                    <input type="number" id="cash_register_base" name="cash_register_base" class="form-input"
+                           value="<?= esc($settings['cash_register_base'] ?? '125.00') ?>" min="0" step="0.01">
+                    <p class="text-xs text-gray-400 mt-1.5">Monto con el que se abre una caja por turno.</p>
+                </div>
                 <div class="md:col-span-3">
                     <label for="address" class="form-label">Dirección</label>
                     <input type="text" id="address" name="address" class="form-input" value="<?= esc($settings['address'] ?? '') ?>">

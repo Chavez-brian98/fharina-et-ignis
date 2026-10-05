@@ -27,7 +27,7 @@
 
         <div>
             <label for="id_document" class="form-label">DUI <span class="text-red-500">*</span></label>
-            <input type="text" id="id_document" name="id_document" maxlength="30" class="form-input" value="<?= old('id_document') ?>" required placeholder="Ej: 12345678-9 (9 dígitos, guion antes del último)">
+            <input type="text" id="id_document" name="id_document" data-dui inputmode="numeric" maxlength="10" pattern="\d{8}-\d" class="form-input" value="<?= old('id_document') ?>" required placeholder="Ej: 01234567-8">
         </div>
 
         <div>
@@ -64,11 +64,13 @@
         </div>
 
         <div>
-            <label for="role" class="form-label">Rol <span class="text-red-500">*</span></label>
-            <select id="role" name="role" class="form-input" required>
+            <label for="role_id" class="form-label">Rol <span class="text-red-500">*</span></label>
+            <select id="role_id" name="role_id" class="form-input" required>
                 <option value="">Selecciona un rol...</option>
-                <?php foreach ($roles as $role): ?>
-                    <option value="<?= $role ?>" <?= old('role') === $role ? 'selected' : '' ?>><?= esc(Employee::roleLabel($role)) ?></option>
+                <?php foreach ($roles as $rol): ?>
+                    <option value="<?= (int) $rol['id'] ?>" <?= old('role_id') === (string) $rol['id'] ? 'selected' : '' ?>>
+                        <?= esc(Role::label($rol['name'])) ?><?= (int) $rol['is_admin'] === 1 ? ' (acceso total)' : '' ?>
+                    </option>
                 <?php endforeach; ?>
             </select>
         </div>

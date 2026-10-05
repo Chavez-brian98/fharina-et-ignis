@@ -85,8 +85,17 @@ class ProductController
             $image_url = $uploaded;
         }
 
+        $galleryUrls = upload_gallery('gallery_images');
+        if ($galleryUrls === false) {
+            header('Location: ' . url('products/create'));
+            exit;
+        }
+
         if ($this->productModel->create($category_id, $name, $description, $sale_price, $production_cost, $stock, $min_stock, $image_url, $barcode)) {
             $recordId = (int) $this->db->lastInsertId();
+            if ($galleryUrls) {
+                $this->productModel->setGallery($recordId, $galleryUrls);
+            }
             $new = $this->productModel->getById($recordId);
             $this->auditModel->write('create', 'productos', $recordId, null, $new ?: null, 'Producto creado.');
             flash('success', 'Producto creado correctamente.');
@@ -111,6 +120,7 @@ class ProductController
 
         $title = 'Editar Producto';
         $currentModule = 'products';
+        $gallery = $this->productModel->getGallery($id);
         $breadcrumbs = [
             ['label' => 'Sistema', 'url' => url('dashboard')],
             ['label' => 'Productos', 'url' => url('products')],
@@ -159,9 +169,36 @@ class ProductController
             $image_url = $uploaded;
         }
 
+        $removedGallery = array_map('trim', $_POST['remove_gallery'] ?? []);
+        $removedGallery = array_filter($removedGallery);
+        $currentGallery = $this->productModel->getGallery($id);
+        $keptGallery = [];
+        foreach ($currentGallery as $item) {
+            if (!in_array($item['image_url'], $removedGallery, true)) {
+                $keptGallery[] = $item['image_url'];
+            }
+        }
+
+        $galleryUrls = upload_gallery('gallery_images');
+        if ($galleryUrls === false) {
+            header('Location: ' . url('products/edit/' . $id));
+            exit;
+        }
+
+        foreach ($removedGallery as $oldUrl) {
+            if (strncmp($oldUrl, '/uploads/', 9) === 0) {
+                $path = __DIR__ . '/../public' . $oldUrl;
+                if (is_file($path)) {
+                    @unlink($path);
+                }
+            }
+        }
+
         $before = $this->productModel->getById($id);
 
         if ($this->productModel->update($id, $category_id, $name, $description, $sale_price, $production_cost, $stock, $min_stock, $image_url, $barcode, $status)) {
+            $finalGallery = array_merge($keptGallery, $galleryUrls);
+            $this->productModel->setGallery($id, $finalGallery);
             $after = $this->productModel->getById($id);
             $this->auditModel->write('update', 'productos', $id, $before, $after ?: null, 'Producto actualizado.');
             flash('success', 'Producto actualizado correctamente.');
@@ -192,8 +229,21 @@ class ProductController
     public function delete($id)
     {
         $before = $this->productModel->getById($id);
+        $galleryBefore = $before ? $this->productModel->getGallery($id) : [];
 
-        if ($this->productModel->delete($id)) {
+        if ($before && $this->productModel->delete($id)) {
+            $urls = [$before['image_url'] ?? ''];
+            foreach ($galleryBefore as $gal) {
+                $urls[] = $gal['image_url'];
+            }
+            foreach ($urls as $oldUrl) {
+                if (strncmp($oldUrl, '/uploads/', 9) === 0) {
+                    $path = __DIR__ . '/../public' . $oldUrl;
+                    if (is_file($path)) {
+                        @unlink($path);
+                    }
+                }
+            }
             $this->auditModel->write('delete', 'productos', $id, $before ?: null, null, 'Producto eliminado.');
             flash('success', 'Producto eliminado correctamente.');
         } else {

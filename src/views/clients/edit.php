@@ -13,18 +13,19 @@
     </div>
     <form action="<?= url('clients/update/' . $client['id']) ?>" method="POST" enctype="multipart/form-data" class="px-6 py-6 grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-            <label for="name" class="form-label">Nombre <span class="text-red-500">*</span></label>
+            <label for="name" class="form-label">Nombre <span class="text-red-500" id="requiredNameMark">*</span></label>
             <input type="text" id="name" name="name" class="form-input" value="<?= esc($client['name']) ?>" required>
         </div>
 
         <div>
-            <label for="last_name" class="form-label">Apellido <span class="text-red-500">*</span></label>
+            <label for="last_name" class="form-label">Apellido <span class="text-red-500" id="requiredLastNameMark">*</span></label>
             <input type="text" id="last_name" name="last_name" class="form-input" value="<?= esc($client['last_name']) ?>" required>
+            <p id="empresaNameHint" class="hidden text-xs text-gray-400 mt-1.5">Opcional para empresa: se mostrará el nombre de la empresa.</p>
         </div>
 
         <div>
-            <label for="id_document" class="form-label">DUI / NIT</label>
-            <input type="text" id="id_document" name="id_document" maxlength="30" class="form-input" value="<?= esc($client['id_document']) ?>" placeholder="Ej: 01234567-8">
+            <label for="id_document" class="form-label">DUI</label>
+            <input type="text" id="id_document" name="id_document" data-dui inputmode="numeric" maxlength="10" pattern="\d{8}-\d" class="form-input" value="<?= esc($client['id_document']) ?>" placeholder="Ej: 01234567-8">
         </div>
 
         <div>
@@ -107,12 +108,22 @@
         const typeSelect = document.getElementById('client_type');
         const companyField = document.getElementById('companyField');
         const companyInput = document.getElementById('company_name');
+        const nameInput = document.getElementById('name');
+        const lastInput = document.getElementById('last_name');
+        const nameMark = document.getElementById('requiredNameMark');
+        const lastMark = document.getElementById('requiredLastNameMark');
+        const nameHint = document.getElementById('empresaNameHint');
 
         function syncCompany() {
             const isCompany = typeSelect.value === 'empresa';
             companyField.classList.toggle('hidden', !isCompany);
             companyInput.required = isCompany;
             companyInput.disabled = !isCompany;
+            nameInput.required = !isCompany;
+            lastInput.required = !isCompany;
+            nameMark.classList.toggle('hidden', isCompany);
+            lastMark.classList.toggle('hidden', isCompany);
+            nameHint.classList.toggle('hidden', !isCompany);
         }
 
         typeSelect.addEventListener('change', syncCompany);

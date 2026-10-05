@@ -34,88 +34,40 @@
             </button>
         </div>
 
+        <?php
+        // El menú se arma desde el catálogo de módulos (src/config/permisos.php):
+        // solo se muestra lo que el usuario en sesión puede ver.
+        $navGroups = Permiso::modulosPorGrupo();
+        $navOrder = ['Punto de Venta', 'Sistema', 'Catálogo', 'Operaciones', 'Reportes', 'Configuración'];
+        ?>
         <nav class="flex-1 overflow-y-auto px-3 py-4 space-y-5">
 
-            <!-- PUNTO DE VENTA -->
+            <?php foreach ($navOrder as $groupName):
+                $groupItems = [];
+                foreach ($navGroups[$groupName] ?? [] as $key => $modulo) {
+                    if (puede($key)) {
+                        $groupItems[$key] = $modulo;
+                    }
+                }
+                if (empty($groupItems)) {
+                    continue;
+                }
+            ?>
             <div>
-                <p class="px-2 mb-1 text-[11px] font-bold tracking-widest text-gray-400 uppercase sidebar-section-title">Punto de Venta</p>
-                <a href="#cash-register" title="Caja" class="flex items-center gap-3 px-2 py-2 rounded-lg text-sm font-medium sidebar-link sidebar-anchor">
-                    <i class="fa-solid fa-cash-register w-4 text-center shrink-0"></i><span class="sidebar-text">Caja</span>
+                <p class="px-2 mb-1 text-[11px] font-bold tracking-widest text-gray-400 uppercase sidebar-section-title"><?= esc($groupName) ?></p>
+                <?php foreach ($groupItems as $key => $modulo):
+                    $isActive = ($currentModule ?? '') === $key;
+                    $destino = $modulo['url'] ?? ($modulo['placeholder'] ?? '#');
+                    $classes = 'flex items-center gap-3 px-2 py-2 rounded-lg text-sm font-medium sidebar-link'
+                        . ($isActive ? ' nav-active' : '')
+                        . (empty($modulo['url']) ? ' sidebar-anchor opacity-60' : '');
+                ?>
+                <a href="<?= $modulo['url'] ? url($modulo['url']) : esc($destino) ?>" title="<?= esc($modulo['label']) ?>" class="<?= $classes ?>">
+                    <i class="fa-solid <?= esc($modulo['icon']) ?> w-4 text-center shrink-0"></i><span class="sidebar-text"><?= esc($modulo['nav'] ?? $modulo['label']) ?></span>
                 </a>
-                <a href="<?= url('pos') ?>" title="Ventas" class="flex items-center gap-3 px-2 py-2 rounded-lg text-sm font-medium sidebar-link <?= ($currentModule ?? '') === 'pos' ? 'nav-active' : '' ?>">
-                    <i class="fa-solid fa-cart-shopping w-4 text-center shrink-0"></i><span class="sidebar-text">Ventas</span>
-                </a>
-                <a href="<?= url('clients') ?>" title="Clientes" class="flex items-center gap-3 px-2 py-2 rounded-lg text-sm font-medium sidebar-link <?= ($currentModule ?? '') === 'clients' ? 'nav-active' : '' ?>">
-                    <i class="fa-solid fa-users-line w-4 text-center shrink-0"></i><span class="sidebar-text">Clientes</span>
-                </a>
+                <?php endforeach; ?>
             </div>
-
-            <!-- SISTEMAS -->
-            <div>
-                <p class="px-2 mb-1 text-[11px] font-bold tracking-widest text-gray-400 uppercase sidebar-section-title">Sistemas</p>
-                <a href="<?= url('dashboard') ?>" title="Dashboard" class="flex items-center gap-3 px-2 py-2 rounded-lg text-sm font-medium sidebar-link <?= ($currentModule ?? '') === 'dashboard' ? 'nav-active' : '' ?>">
-                    <i class="fa-solid fa-gauge-high w-4 text-center shrink-0"></i><span class="sidebar-text">Dashboard</span>
-                </a>
-                <a href="<?= url('employees') ?>" title="Empleados" class="flex items-center gap-3 px-2 py-2 rounded-lg text-sm font-medium sidebar-link <?= ($currentModule ?? '') === 'employees' ? 'nav-active' : '' ?>">
-                    <i class="fa-solid fa-user-tie w-4 text-center shrink-0"></i><span class="sidebar-text">Empleados</span>
-                </a>
-                <a href="<?= url('audit') ?>" title="Bitácora" class="flex items-center gap-3 px-2 py-2 rounded-lg text-sm font-medium sidebar-link <?= ($currentModule ?? '') === 'audit' ? 'nav-active' : '' ?>">
-                    <i class="fa-solid fa-clipboard-list w-4 text-center shrink-0"></i><span class="sidebar-text">Bitácora</span>
-                </a>
-            </div>
-
-            <!-- CATÁLOGO -->
-            <div>
-                <p class="px-2 mb-1 text-[11px] font-bold tracking-widest text-gray-400 uppercase sidebar-section-title">Catálogo</p>
-                <a href="<?= url('products') ?>" title="Productos" class="flex items-center gap-3 px-2 py-2 rounded-lg text-sm font-medium sidebar-link <?= ($currentModule ?? '') === 'products' ? 'nav-active' : '' ?>">
-                    <i class="fa-solid fa-box w-4 text-center shrink-0"></i><span class="sidebar-text">Productos</span>
-                </a>
-                <a href="<?= url('categories') ?>" title="Categorías" class="flex items-center gap-3 px-2 py-2 rounded-lg text-sm font-medium sidebar-link <?= ($currentModule ?? '') === 'categories' ? 'nav-active' : '' ?>">
-                    <i class="fa-solid fa-tags w-4 text-center shrink-0"></i><span class="sidebar-text">Categorías</span>
-                </a>
-            </div>
-
-            <!-- OPERACIONES -->
-            <div>
-                <p class="px-2 mb-1 text-[11px] font-bold tracking-widest text-gray-400 uppercase sidebar-section-title">Operaciones</p>
-                <a href="#inventory" title="Inventario" class="flex items-center gap-3 px-2 py-2 rounded-lg text-sm font-medium sidebar-link sidebar-anchor">
-                    <i class="fa-solid fa-boxes-stacked w-4 text-center shrink-0"></i><span class="sidebar-text">Inventario</span>
-                </a>
-                <a href="#production" title="Producción" class="flex items-center gap-3 px-2 py-2 rounded-lg text-sm font-medium sidebar-link sidebar-anchor">
-                    <i class="fa-solid fa-industry w-4 text-center shrink-0"></i><span class="sidebar-text">Producción</span>
-                </a>
-                <a href="#suppliers" title="Proveedores" class="flex items-center gap-3 px-2 py-2 rounded-lg text-sm font-medium sidebar-link sidebar-anchor">
-                    <i class="fa-solid fa-truck w-4 text-center shrink-0"></i><span class="sidebar-text">Proveedores</span>
-                </a>
-                <a href="#orders" title="Pedidos" class="flex items-center gap-3 px-2 py-2 rounded-lg text-sm font-medium sidebar-link sidebar-anchor">
-                    <i class="fa-solid fa-cake-candles w-4 text-center shrink-0"></i><span class="sidebar-text">Pedidos</span>
-                </a>
-                <a href="#promotions" title="Promociones" class="flex items-center gap-3 px-2 py-2 rounded-lg text-sm font-medium sidebar-link sidebar-anchor">
-                    <i class="fa-solid fa-percent w-4 text-center shrink-0"></i><span class="sidebar-text">Promociones</span>
-                </a>
-            </div>
-
-            <!-- REPORTES -->
-            <div>
-                <p class="px-2 mb-1 text-[11px] font-bold tracking-widest text-gray-400 uppercase sidebar-section-title">Reportes</p>
-                <a href="#reports" title="Reportes" class="flex items-center gap-3 px-2 py-2 rounded-lg text-sm font-medium sidebar-link sidebar-anchor">
-                    <i class="fa-solid fa-chart-line w-4 text-center shrink-0"></i><span class="sidebar-text">Reportes</span>
-                </a>
-                <a href="#statistics" title="Estadísticas" class="flex items-center gap-3 px-2 py-2 rounded-lg text-sm font-medium sidebar-link sidebar-anchor">
-                    <i class="fa-solid fa-chart-pie w-4 text-center shrink-0"></i><span class="sidebar-text">Estadísticas</span>
-                </a>
-            </div>
-
-            <!-- CONFIGURACION -->
-            <div>
-                <p class="px-2 mb-1 text-[11px] font-bold tracking-widest text-gray-400 uppercase sidebar-section-title">Configuracion</p>
-                <a href="#notifications" title="Notificaciones" class="flex items-center gap-3 px-2 py-2 rounded-lg text-sm font-medium sidebar-link sidebar-anchor">
-                    <i class="fa-solid fa-bell w-4 text-center shrink-0"></i><span class="sidebar-text">Notificaciones</span>
-                </a>
-                <a href="<?= url('settings') ?>" title="Configuración" class="flex items-center gap-3 px-2 py-2 rounded-lg text-sm font-medium sidebar-link <?= ($currentModule ?? '') === 'settings' ? 'nav-active' : '' ?>">
-                    <i class="fa-solid fa-gear w-4 text-center shrink-0"></i><span class="sidebar-text">Configuración</span>
-                </a>
-            </div>
+            <?php endforeach; ?>
 
         </nav>
 

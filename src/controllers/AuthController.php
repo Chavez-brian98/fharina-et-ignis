@@ -48,6 +48,7 @@ class AuthController
                 'email' => $user['email'],
                 'profile_photo' => $user['profile_photo'],
                 'role' => $user['role'],
+                'role_id' => (int) $user['role_id'],
             ];
 
             $this->auditModel->write('login', null, (int) $user['id'], null, null, 'Inicio de sesión.', (int) $user['id']);

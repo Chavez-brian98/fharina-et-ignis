@@ -10,6 +10,12 @@ $actionMeta = [
     'toggle'       => ['label' => 'Cambio de estado', 'color' => 'bg-violet-50 text-violet-600', 'icon' => 'fa-toggle-on'],
     'delete'       => ['label' => 'Eliminación', 'color' => 'bg-red-50 text-red-600', 'icon' => 'fa-trash-can'],
     'sale'         => ['label' => 'Venta', 'color' => 'bg-teal-50 text-teal-600', 'icon' => 'fa-cart-shopping'],
+    'cash_open'         => ['label' => 'Apertura de caja', 'color' => 'bg-green-50 text-green-600', 'icon' => 'fa-lock-open'],
+    'cash_open_assign'  => ['label' => 'Caja asignada', 'color' => 'bg-green-50 text-green-600', 'icon' => 'fa-user-plus'],
+    'cash_open_denied'  => ['label' => 'Apertura denegada', 'color' => 'bg-red-50 text-red-600', 'icon' => 'fa-user-lock'],
+    'cash_close'        => ['label' => 'Cierre de caja', 'color' => 'bg-amber-50 text-amber-600', 'icon' => 'fa-lock'],
+    'cash_reopen'       => ['label' => 'Reapertura de caja', 'color' => 'bg-violet-50 text-violet-600', 'icon' => 'fa-rotate-right'],
+    'cash_movement'     => ['label' => 'Movimiento de caja', 'color' => 'bg-sky-50 text-sky-600', 'icon' => 'fa-arrow-right-arrow-left'],
 ];
 
 function auditActionMeta($action, $meta)
@@ -25,24 +31,89 @@ function auditPerson($item)
     return '—';
 }
 
-function auditChanges($json)
+function auditValue($value)
 {
-    if ($json === null || $json === '') {
-        return '—';
+    if (is_array($value)) {
+        return json_encode($value, JSON_UNESCAPED_UNICODE);
     }
-    $array = json_decode($json, true);
-    if (!is_array($array) || empty($array)) {
-        return '—';
+    if ($value === null || $value === '') {
+        return '';
     }
-    $lines = [];
-    foreach ($array as $key => $value) {
-        if ($key === 'password_hash' || $key === 'has_login') {
-            continue;
+    return (string) $value;
+}
+
+/**
+ * Construye el HTML del diff de datos para el modal: resalta únicamente los
+ * campos que cambiaron, con el valor nuevo en verde y el anterior en gris.
+ */
+function auditDiffHtml($oldData, $newData, $action)
+{
+    $old = is_array($oldJson = json_decode((string) $oldData, true)) ? $oldJson : [];
+    $new = is_array($newJson = json_decode((string) $newData, true)) ? $newJson : [];
+
+    $old = array_diff_key($old, array_flip(['password_hash', 'has_login']));
+    $new = array_diff_key($new, array_flip(['password_hash', 'has_login']));
+
+    $isCreate = in_array($action, ['create', 'sale'], true);
+    $isDelete = $action === 'delete';
+
+    $fields = [];
+    if ($isCreate) {
+        foreach ($new as $key => $value) {
+            $fields[$key] = [$key, '', auditValue($value)];
         }
-        $display = is_array($value) ? json_encode($value, JSON_UNESCAPED_UNICODE) : (string) $value;
-        $lines[] = $key . ': ' . $display;
+    } elseif ($isDelete) {
+        foreach ($old as $key => $value) {
+            $fields[$key] = [$key, auditValue($value), ''];
+        }
+    } else {
+        foreach (array_unique(array_merge(array_keys($old), array_keys($new))) as $key) {
+            $oldVal = array_key_exists($key, $old) ? auditValue($old[$key]) : '';
+            $newVal = array_key_exists($key, $new) ? auditValue($new[$key]) : '';
+            if ($oldVal === $newVal) {
+                continue;
+            }
+            $fields[$key] = [$key, $oldVal, $newVal];
+        }
     }
-    return implode("\n", $lines);
+
+    if (empty($fields)) {
+        return '<div class="rounded-xl bg-gray-50 ring-1 ring-gray-200 px-4 py-4 text-sm text-gray-500"><i class="fa-solid fa-circle-info mr-2"></i>Sin cambios registrados en este movimiento.</div>';
+    }
+
+    $html = '<div class="mt-4 pt-4 border-t border-gray-100 space-y-4">';
+    $html .= '<span class="block text-xs font-bold uppercase tracking-wider text-gray-500">Cambios detectados</span>';
+    foreach ($fields as [$key, $oldVal, $newVal]) {
+        $html .= '<div class="rounded-xl ring-1 ring-gray-200 bg-white shadow-sm shadow-gray-200/40 p-4">'
+            . '<span class="block text-xs font-bold uppercase tracking-wider text-gray-600 mb-2 break-words">' . esc($key) . '</span>';
+
+        if ($isCreate) {
+            $html .= '<div class="rounded-xl bg-green-50 ring-1 ring-green-200 px-4 py-3">'
+                . '<span class="block text-xs font-semibold text-green-700 mb-1"><i class="fa-solid fa-circle-check mr-1"></i>Valor nuevo</span>'
+                . '<span class="block text-sm font-semibold text-green-900 leading-snug break-words" style="white-space:pre-wrap;word-break:break-word;">' . esc($newVal === '' ? '—' : $newVal) . '</span>'
+                . '</div>';
+        } elseif ($isDelete) {
+            $html .= '<div class="rounded-xl bg-gray-100 ring-1 ring-gray-200 px-4 py-3">'
+                . '<span class="block text-xs font-semibold text-gray-500 mb-1"><i class="fa-solid fa-circle-minus mr-1"></i>Valor anterior</span>'
+                . '<span class="block text-sm text-gray-600 leading-snug break-words" style="white-space:pre-wrap;word-break:break-word;">' . esc($oldVal === '' ? '—' : $oldVal) . '</span>'
+                . '</div>';
+        } else {
+            $html .= '<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">'
+                . '<div class="rounded-xl bg-gray-100/90 ring-1 ring-gray-200 px-4 py-3">'
+                . '<span class="block text-xs font-semibold text-gray-500 mb-1"><i class="fa-solid fa-arrow-right-to-bracket mr-1"></i>Antes</span>'
+                . '<span class="block text-sm text-gray-600 leading-snug break-words" style="white-space:pre-wrap;word-break:break-word;">' . esc($oldVal === '' ? '—' : $oldVal) . '</span>'
+                . '</div>'
+                . '<div class="rounded-xl bg-green-50 ring-1 ring-green-200 px-4 py-3">'
+                . '<span class="block text-xs font-semibold text-green-700 mb-1"><i class="fa-solid fa-circle-check mr-1"></i>Después</span>'
+                . '<span class="block text-sm font-semibold text-green-900 leading-snug break-words" style="white-space:pre-wrap;word-break:break-word;">' . esc($newVal === '' ? '—' : $newVal) . '</span>'
+                . '</div>'
+                . '</div>';
+        }
+        $html .= '</div>';
+    }
+    $html .= '</div>';
+
+    return $html;
 }
 ?>
 
@@ -106,9 +177,8 @@ function auditChanges($json)
                         'Persona' => $person,
                         'Dirección IP' => $item['ip_address'] ?: '—',
                         'Fecha y hora' => date('d/m/Y H:i:s', strtotime($item['created_at'])),
-                        'Datos anteriores' => auditChanges($item['old_data']),
-                        'Datos nuevos' => auditChanges($item['new_data']),
                     ], JSON_UNESCAPED_UNICODE);
+                    $diffHtml = auditDiffHtml($item['old_data'], $item['new_data'], $item['action']);
                     $searchable = strtolower(
                         $person . ' ' . $meta['label'] . ' ' . ($item['table_name'] ?? '')
                         . ' ' . ($item['description'] ?? '')
@@ -148,7 +218,8 @@ function auditChanges($json)
                             <button type="button" class="btn-action btn-detail" title="Ver detalle"
                                     data-title="Detalle de la acción"
                                     data-icon="fa-clipboard-list"
-                                    data-detail='<?= esc($detail) ?>'>
+                                    data-detail='<?= esc($detail) ?>'
+                                    data-detail-html="<?= esc($diffHtml) ?>">
                                 <i class="fa-regular fa-eye"></i>
                             </button>
                         </div>

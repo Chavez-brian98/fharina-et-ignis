@@ -94,6 +94,18 @@ CREATE TABLE client_segment (
 -- ----------------------------------------------------------------------------
 -- 2. EMPLEADOS / RRHH
 -- ----------------------------------------------------------------------------
+-- Catálogo de roles administrable (módulo Roles y Permisos). El rol del
+-- empleado es una FK; los permisos viven en role_permissions (4 acciones por
+-- módulo) y employee_permissions (excepciones por empleado que ganan al rol).
+CREATE TABLE roles (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(60) NOT NULL UNIQUE,
+    description VARCHAR(255),
+    is_admin TINYINT(1) NOT NULL DEFAULT 0,
+    status ENUM('active','inactive') NOT NULL DEFAULT 'active',
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+
 CREATE TABLE empleados (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
@@ -101,7 +113,7 @@ CREATE TABLE empleados (
     id_document VARCHAR(30) NOT NULL UNIQUE,
     email VARCHAR(150) UNIQUE,
     password_hash VARCHAR(255),
-    role ENUM('administrador','cajero','mesero','produccion','domiciliero','sub_jefe') NOT NULL,
+    role_id INT NOT NULL,
     phone VARCHAR(20),
     address VARCHAR(255),
     profile_photo VARCHAR(500),
@@ -114,7 +126,37 @@ CREATE TABLE empleados (
     CONSTRAINT chk_empleados_login CHECK (
         (email IS NULL AND password_hash IS NULL)
         OR (email IS NOT NULL AND password_hash IS NOT NULL)
-    )
+    ),
+    CONSTRAINT fk_empleados_role FOREIGN KEY (role_id) REFERENCES roles(id)
+) ENGINE=InnoDB;
+
+-- Permisos por rol: una fila por módulo con las 4 acciones.
+CREATE TABLE role_permissions (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    role_id INT NOT NULL,
+    module VARCHAR(50) NOT NULL,
+    can_view TINYINT(1) NOT NULL DEFAULT 0,
+    can_create TINYINT(1) NOT NULL DEFAULT 0,
+    can_edit TINYINT(1) NOT NULL DEFAULT 0,
+    can_delete TINYINT(1) NOT NULL DEFAULT 0,
+    UNIQUE KEY uq_role_module (role_id, module),
+    INDEX idx_rp_role (role_id),
+    CONSTRAINT fk_rp_role FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+-- Excepciones por empleado: si existe fila para un módulo, esa fila define
+-- por completo sus permisos en ese módulo (puede conceder o quitar acceso).
+CREATE TABLE employee_permissions (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    employee_id INT NOT NULL,
+    module VARCHAR(50) NOT NULL,
+    can_view TINYINT(1) NOT NULL DEFAULT 0,
+    can_create TINYINT(1) NOT NULL DEFAULT 0,
+    can_edit TINYINT(1) NOT NULL DEFAULT 0,
+    can_delete TINYINT(1) NOT NULL DEFAULT 0,
+    UNIQUE KEY uq_emp_module (employee_id, module),
+    INDEX idx_ep_emp (employee_id),
+    CONSTRAINT fk_ep_emp FOREIGN KEY (employee_id) REFERENCES empleados(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 CREATE TABLE shifts (
@@ -382,11 +424,23 @@ CREATE TABLE caja (
     physical_final_amount DECIMAL(10,2),
     difference DECIMAL(10,2),
     state ENUM('abierta','cerrada') NOT NULL DEFAULT 'abierta',
+    reopened_by INT NULL,
+    reopen_reason VARCHAR(255) NULL,
+    reopen_count INT NOT NULL DEFAULT 0,
+    -- Vale 1 solo si la caja está abierta y NULL si está cerrada; con el UNIQUE de
+    -- abajo MySQL rechaza (1062) una segunda caja abierta del mismo empleado.
+    state_open INT GENERATED ALWAYS AS (IF(state = 'abierta', 1, NULL)) VIRTUAL,
     CONSTRAINT fk_cash_opening_employee FOREIGN KEY (opening_employee_id) REFERENCES empleados(id),
     CONSTRAINT fk_cash_closing_employee FOREIGN KEY (closing_employee_id) REFERENCES empleados(id),
+    CONSTRAINT fk_cash_reopened_by FOREIGN KEY (reopened_by) REFERENCES empleados(id),
     INDEX idx_cash_state (state),
     INDEX idx_cash_date (cash_date)
 ) ENGINE=InnoDB;
+
+-- Un empleado no puede tener dos cajas abiertas a la vez (varias cajas cerradas
+-- del mismo día sí se permiten: eso cubre el caso de los turnos).
+ALTER TABLE caja
+    ADD CONSTRAINT uq_cash_open_per_employee UNIQUE (opening_employee_id, state_open);
 
 CREATE TABLE cash_register_movements (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -655,14 +709,70 @@ INSERT INTO clients (name, last_name, id_document, client_type, company_name, ph
 INSERT INTO client_segment (client_id, segment_id) VALUES (1, 1), (2, 2);
 
 -- ----------------------------------------------------------------------------
+-- ROLES Y PERMISOS SEED
+-- ----------------------------------------------------------------------------
+INSERT INTO roles (id, name, description, is_admin, status) VALUES
+(1, 'administrador', 'Acceso total a todos los módulos y acciones.', 1, 'active'),
+(2, 'sub_jefe', 'Supervisión de operaciones, catálogo y reportes (sin configuración).', 0, 'active'),
+(3, 'cajero', 'Acceso al punto de venta y clientes.', 0, 'active'),
+(4, 'mesero', 'Atención en salón: punto de venta, clientes y consulta de catálogo.', 0, 'active'),
+(5, 'produccion', 'Producción e inventario: recetas, ingredientes y stock.', 0, 'active'),
+(6, 'domiciliero', 'Entregas a domicilio y consulta de pedidos.', 0, 'active');
+
+-- role_permissions: una fila por módulo y rol. Los módulos que no aparecen
+-- quedan en "sin acceso" para ese rol (no hace falta fila con todo en 0).
+-- (mod, view, create, edit, delete)
+INSERT INTO role_permissions (role_id, module, can_view, can_create, can_edit, can_delete) VALUES
+-- Sub jefe: casi todo, salvo configuración/roles/empleados.
+(2, 'dashboard', 1, 0, 0, 0),
+(2, 'pos', 1, 1, 0, 0),
+(2, 'clients', 1, 1, 1, 0),
+(2, 'cash_register', 1, 1, 1, 0),
+(2, 'products', 1, 1, 1, 0),
+(2, 'categories', 1, 1, 1, 0),
+(2, 'inventory', 1, 0, 0, 0),
+(2, 'production', 1, 0, 0, 0),
+(2, 'suppliers', 1, 0, 0, 0),
+(2, 'orders', 1, 0, 0, 0),
+(2, 'promotions', 1, 0, 0, 0),
+(2, 'reports', 1, 0, 0, 0),
+(2, 'statistics', 1, 0, 0, 0),
+-- Cajero: solo POS y clientes (+ su propio perfil y dashboard).
+(3, 'dashboard', 1, 0, 0, 0),
+(3, 'pos', 1, 1, 0, 0),
+(3, 'clients', 1, 1, 1, 0),
+(3, 'cash_register', 1, 1, 0, 0),
+(3, 'profile', 1, 0, 1, 0),
+-- Mesero: salón; consulta catálogo sin modificarlo.
+(4, 'dashboard', 1, 0, 0, 0),
+(4, 'pos', 1, 1, 0, 0),
+(4, 'clients', 1, 1, 1, 0),
+(4, 'products', 1, 0, 0, 0),
+(4, 'categories', 1, 0, 0, 0),
+(4, 'profile', 1, 0, 1, 0),
+-- Producción: catálogo + inventario/producción (consulta y edición de productos).
+(5, 'products', 1, 1, 1, 0),
+(5, 'categories', 1, 0, 0, 0),
+(5, 'inventory', 1, 1, 1, 1),
+(5, 'production', 1, 0, 0, 0),
+(5, 'suppliers', 1, 0, 0, 0),
+(5, 'profile', 1, 0, 1, 0),
+-- Domiciliero: pedidos y consulta de clientes.
+(6, 'dashboard', 1, 0, 0, 0),
+(6, 'pos', 1, 1, 0, 0),
+(6, 'orders', 1, 1, 1, 0),
+(6, 'clients', 1, 0, 0, 0),
+(6, 'profile', 1, 0, 1, 0);
+
+-- ----------------------------------------------------------------------------
 -- DASHBOARD SEED (empleados, promociones, caja, ventas, pedidos)
 -- ----------------------------------------------------------------------------
--- Los empleados con credenciales de acceso (role/email/password_hash)
+-- Los empleados con credenciales de acceso (email/password_hash + role_id)
 -- El acceso es solo con el correo; como nombre se usa name + last_name.
-INSERT INTO empleados (id, name, last_name, id_document, email, password_hash, role, phone, address, birth_date, hire_date, base_salary) VALUES
-(1, 'Carlos', 'Ramírez', 'PAN-0001', 'carlos.ramirez@bakery.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'produccion', '5555-0101', 'Zona 5, Ciudad', '1990-03-15', '2023-05-01', 1200.00),
-(2, 'María', 'González', 'CAJ-0001', 'maria.gonzalez@bakery.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'cajero', '5555-0102', 'Zona 3, Ciudad', '1995-07-22', '2023-06-15', 1000.00),
-(3, 'BRIAN JOSUE CHAVEZ RECINOS', 'Administrador', 'ADM-0001', 'admin@ignis.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'administrador', NULL, NULL, NULL, '2023-01-01', 1500.00);
+INSERT INTO empleados (id, name, last_name, id_document, email, password_hash, role_id, phone, address, birth_date, hire_date, base_salary) VALUES
+(1, 'Carlos', 'Ramírez', '00000001-1', 'carlos.ramirez@bakery.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 5, '5555-0101', 'Zona 5, Ciudad', '1990-03-15', '2023-05-01', 1200.00),
+(2, 'María', 'González', '00000002-2', 'maria.gonzalez@bakery.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 3, '5555-0102', 'Zona 3, Ciudad', '1995-07-22', '2023-06-15', 1000.00),
+(3, 'BRIAN JOSUE CHAVEZ RECINOS', 'Administrador', '00000003-3', 'admin@ignis.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 1, NULL, NULL, NULL, '2023-01-01', 1500.00);
 
 INSERT INTO promociones (id, name, promotion_type, discount_percentage, start_date, end_date, status) VALUES
 (1, '2x1 Pan de Queso', 'dos_por_uno', 50.00, DATE_SUB(CURDATE(), INTERVAL 7 DAY), DATE_ADD(CURDATE(), INTERVAL 7 DAY), 'active'),
@@ -850,6 +960,7 @@ INSERT INTO settings (setting_key, setting_value) VALUES
 ('phone', '5555-1234'),
 ('currency', '$'),
 ('tax_rate', '0'),
+('cash_register_base', '125.00'),
 ('ticket_footer', '¡Gracias por su compra!'),
 ('system_logo', ''),
 ('login_photo', 'https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=1200&q=80'),
