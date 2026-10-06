@@ -3,6 +3,7 @@
 require_once __DIR__ . '/../models/Product.php';
 require_once __DIR__ . '/../models/Category.php';
 require_once __DIR__ . '/../models/AuditLog.php';
+require_once __DIR__ . '/../models/Notificacion.php';
 
 class ProductController
 {
@@ -10,6 +11,7 @@ class ProductController
     private $productModel;
     private $categoryModel;
     private $auditModel;
+    private $notifModel;
 
     public function __construct($db)
     {
@@ -17,6 +19,7 @@ class ProductController
         $this->productModel = new Product($db);
         $this->categoryModel = new Category($db);
         $this->auditModel = new AuditLog($db);
+        $this->notifModel = new Notificacion($db);
     }
 
     public function index()
@@ -98,6 +101,7 @@ class ProductController
             }
             $new = $this->productModel->getById($recordId);
             $this->auditModel->write('create', 'productos', $recordId, null, $new ?: null, 'Producto creado.');
+            $this->notificarStockBajo($new ?: []);
             flash('success', 'Producto creado correctamente.');
         } else {
             flash('error', 'No se pudo crear el producto.');
@@ -201,6 +205,7 @@ class ProductController
             $this->productModel->setGallery($id, $finalGallery);
             $after = $this->productModel->getById($id);
             $this->auditModel->write('update', 'productos', $id, $before, $after ?: null, 'Producto actualizado.');
+            $this->notificarStockBajo($after ?: []);
             flash('success', 'Producto actualizado correctamente.');
         } else {
             flash('error', 'No se pudo actualizar el producto.');
@@ -208,6 +213,34 @@ class ProductController
 
         header('Location: ' . url('products'));
         exit;
+    }
+
+    /** Crea o resuelve la notificación de stock bajo según el nuevo inventario. */
+    private function notificarStockBajo($product)
+    {
+        if (!$product || ($product['status'] ?? 'active') !== 'active') {
+            return;
+        }
+
+        $productId = (int) $product['id'];
+        $stock = (int) $product['stock'];
+        $minStock = (int) $product['min_stock'];
+
+        if ($stock <= $minStock) {
+            if ($this->notifModel->existe('stock_bajo', 'producto', $productId)) {
+                return;
+            }
+
+            $this->notifModel->crear(
+                'stock_bajo',
+                'Stock bajo',
+                'Stock bajo en "' . $product['name'] . '" — quedan ' . max($stock, 0) . ' unidades.',
+                'producto',
+                $productId
+            );
+        } else {
+            $this->notifModel->resolver('stock_bajo', 'producto', $productId);
+        }
     }
 
     public function toggle($id)

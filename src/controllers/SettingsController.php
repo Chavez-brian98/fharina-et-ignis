@@ -36,7 +36,7 @@ class SettingsController
 
         $textFields = ['system_name', 'business_name', 'address', 'phone', 'currency', 'tax_rate', 'ticket_footer',
             'tax_id', 'tax_regime', 'commercial_activity', 'company_name', 'cashier_prefix', 'terminal_id',
-            'ticket_footer'];
+            'branch_code', 'control_number', 'kiosk_key'];
 
         foreach ($textFields as $key) {
             $this->settingModel->update($key, trim($_POST[$key] ?? ''));
@@ -54,6 +54,15 @@ class SettingsController
         // system_name siempre refleja el nombre del negocio (en producción solo
         // se muestra el nombre del negocio, no el del sistema).
         $this->settingModel->update('system_name', trim($_POST['business_name'] ?? ''));
+
+        // Zona horaria del negocio: valida contra la lista real de PHP y cae
+        // al default del Salvador si llega basura. Se aplica recién en el
+        // próximo request (index.php la lee al cargar settings).
+        $timezone = trim($_POST['timezone'] ?? '');
+        if (!in_array($timezone, array_keys(timezoneOpciones()), true)) {
+            $timezone = 'America/El_Salvador';
+        }
+        $this->settingModel->update('timezone', $timezone);
 
         // Color principal del tema (hex #RRGGBB)
         $primaryColor = strtolower(trim($_POST['primary_color'] ?? ''));

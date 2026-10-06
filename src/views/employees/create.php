@@ -97,6 +97,9 @@
             <?php $cameraField = 'profile_photo'; require __DIR__ . '/../partials/camera_capture.php'; ?>
         </div>
 
+        <!-- Biometría: solo administradores. -->
+        <?php require __DIR__ . '/../partials/face_enroll.php'; ?>
+
         <div class="md:col-span-2 flex items-center gap-3 mt-2">
             <button type="submit" class="inline-flex items-center gap-2 rounded-xl bg-orange-500 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-orange-500/25 hover:bg-orange-600 hover:shadow-orange-500/40 hover:-translate-y-px transition-all">
                 <i class="fa-solid fa-floppy-disk"></i> Guardar Empleado

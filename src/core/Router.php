@@ -8,12 +8,12 @@ class Router
     private $controllers;
     private $siteActions;
     private $publicRoutes;
-
     public function __construct(array $routes)
     {
         $this->controllers = $routes['controllers'] ?? [];
         $this->siteActions = $routes['site_actions'] ?? [];
-        $this->publicRoutes = array_merge(array_keys($this->siteActions), ['auth']);
+        // /kiosco NO exige sesion: es compartido y se desbloquea con clave.
+        $this->publicRoutes = array_merge(array_keys($this->siteActions), ['auth', 'kiosco']);
     }
 
     /**

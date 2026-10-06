@@ -2,6 +2,7 @@
 
 <?php
 $accionesPermiso = Permiso::acciones();
+$esAdmin = Permiso::esAdminActual();
 
 // Lo que otorga cada rol (para repintar la matriz al cambiar el rol en el modal).
 $permisosPorRol = [];
@@ -71,7 +72,7 @@ foreach ($roles as $rol) {
                         'Estado' => $item['status'] === 'active' ? 'Activo' : 'Inactivo',
                     ], JSON_UNESCAPED_UNICODE);
 
-                    // Payload del modal: permisos del rol + excepciones específicas del empleado.
+                    // Payload del modal de permisos: permisos del rol + excepciones del empleado.
                     $overrides = Permiso::permisosDeEmpleado($item['id']);
 
                     $permisosPayload = json_encode([
@@ -82,6 +83,35 @@ foreach ($roles as $rol) {
                         'overrides' => (object) $overrides,
                         'permsPorRol' => $permisosPorRol,
                         'rolesAdmin' => $rolesAdmin,
+                    ], JSON_UNESCAPED_UNICODE);
+
+                    // QR del empleado. El token llega como esta en la base: si el
+                    // empleado nunca Generate su QR, el modal ofrece emitirlo en
+                    // vez de generar uno por fila en cada visita.
+                    $qrPayload = json_encode([
+                        'nombre' => $fullName,
+                        'token' => $item['qr_token'] ?: null,
+                        'regenerar' => url('employees/qrRegenerate/' . $item['id']),
+                    ], JSON_UNESCAPED_UNICODE);
+
+                    // Horario de la semana actual, ya resuelto por el controlador.
+                    $turnos = [];
+                    foreach ($turnosSemana[(int) $item['id']] ?? [] as $t) {
+                        $inicio = strtotime($t['work_date'] . ' ' . $t['start_time']);
+                        $fin = strtotime($t['work_date'] . ' ' . $t['end_time']);
+                        $turnos[] = [
+                            'fecha' => date('d/m', strtotime($t['work_date'])),
+                            'dia' => (string) date('w', strtotime($t['work_date'])),
+                            'hora' => date('H:i', $inicio) . ' - ' . date('H:i', $fin),
+                            'tipo' => Shift::tipoTexto($t['shift_type']),
+                            'horas' => round(($fin - $inicio) / 3600, 2),
+                        ];
+                    }
+
+                    $calPayload = json_encode([
+                        'nombre' => $fullName,
+                        'turnos' => $turnos,
+                        'roster' => url('schedules'),
                     ], JSON_UNESCAPED_UNICODE);
                 ?>
                 <tr class="border-b border-gray-50 last:border-0 hover:bg-orange-50/40 transition-colors"
@@ -97,7 +127,16 @@ foreach ($roles as $rol) {
                                     <i class="fa-solid fa-user-tie text-sm"></i>
                                 </div>
                             <?php endif; ?>
-                            <span class="font-semibold text-gray-900"><?= esc($fullName) ?></span>
+                            <div class="min-w-0">
+                                <div class="flex items-center gap-1.5">
+                                    <span class="font-semibold text-gray-900"><?= esc($fullName) ?></span>
+                                    <?php if (!empty($item['face_enrolled'])): ?>
+                                        <i class="fa-solid fa-face-smile text-green-500 text-xs"
+                                           title="Biometría enrolada: puede marcar con su rostro en el quiosco"></i>
+                                    <?php endif; ?>
+                                </div>
+                                <span class="text-[11px] text-gray-400"><?= empty($item['qr_token']) ? 'sin QR emitido' : 'QR activo' ?></span>
+                            </div>
                         </div>
                     </td>
                     <td class="px-5 py-3.5">
@@ -125,6 +164,14 @@ foreach ($roles as $rol) {
                     </td>
                     <td class="px-5 py-3.5">
                         <div class="flex items-center justify-end gap-1.5">
+                            <button type="button" class="btn-action btn-emp-qr" title="Ver QR de asistencia"
+                                    data-qr="<?= esc($qrPayload) ?>">
+                                <i class="fa-solid fa-qrcode text-orange-500"></i>
+                            </button>
+                            <button type="button" class="btn-action btn-emp-cal" title="Ver horario de esta semana"
+                                    data-cal="<?= esc($calPayload) ?>">
+                                <i class="fa-solid fa-calendar-days text-orange-500"></i>
+                            </button>
                             <button type="button" class="btn-action btn-perms" title="Administrar permisos"
                                     data-perms="<?= esc($permisosPayload) ?>">
                                 <i class="fa-solid fa-shield-halved text-orange-500"></i>
@@ -182,5 +229,8 @@ foreach ($roles as $rol) {
 
 <!-- Modal de permisos por empleado -->
 <?php $matrixConfig = ['modo' => 'empleado', 'conBloqueo' => true, 'roles' => $roles]; require __DIR__ . '/../partials/matrix_permisos.php'; ?>
+
+<!-- Modales de QR y horario semanal -->
+<?php require __DIR__ . '/../partials/empleado_modales.php'; ?>
 
 <?php require_once __DIR__ . '/../layouts/footer.php'; ?>

@@ -51,13 +51,17 @@ return [
         'label' => 'Proveedores', 'group' => 'Operaciones', 'icon' => 'fa-truck',
         'controller' => \SupplierController::class, 'url' => 'suppliers',
     ],
+    'purchases' => [
+        'label' => 'Compras', 'group' => 'Operaciones', 'icon' => 'fa-clipboard-list',
+        'controller' => \PurchaseController::class, 'url' => 'purchases',
+    ],
     'orders' => [
         'label' => 'Pedidos', 'group' => 'Operaciones', 'icon' => 'fa-cake-candles',
-        'controller' => null, 'url' => null, 'placeholder' => '#orders',
+        'controller' => \OrderController::class, 'url' => 'orders',
     ],
     'promotions' => [
         'label' => 'Promociones', 'group' => 'Operaciones', 'icon' => 'fa-percent',
-        'controller' => null, 'url' => null, 'placeholder' => '#promotions',
+        'controller' => \PromotionController::class, 'url' => 'promotions',
     ],
     'employees' => [
         'label' => 'Empleados', 'group' => 'Sistema', 'icon' => 'fa-user-tie',
@@ -80,15 +84,49 @@ return [
         'controller' => null, 'url' => null, 'placeholder' => '#statistics',
     ],
     'notifications' => [
-        'label' => 'Notificaciones', 'group' => 'Configuración', 'icon' => 'fa-bell',
-        'controller' => null, 'url' => null, 'placeholder' => '#notifications',
+        'label' => 'Notificaciones',
+        // 'nav' => false: la campana vive en el layout (arriba a la derecha), no
+        // en el menú. 'always' => true: cualquier empleado logueado la ve.
+        'nav' => false,
+        'group' => 'Configuración',
+        'icon' => 'fa-bell',
+        'controller' => \NotificationController::class,
+        'url' => 'notifications',
+        'always' => true,
     ],
     'settings' => [
         'label' => 'Configuración', 'group' => 'Configuración', 'icon' => 'fa-gear',
         'controller' => 'SettingsController', 'url' => 'settings',
     ],
+    'attendance' => [
+        'label' => 'Mi Asistencia', 'nav' => 'Mi Asistencia', 'group' => 'Personal', 'icon' => 'fa-fingerprint',
+        'controller' => \AttendanceController::class, 'url' => 'attendance',
+        'always' => true,
+    ],
+    'schedules' => [
+        'label' => 'Horarios', 'nav' => 'Horarios', 'group' => 'Personal', 'icon' => 'fa-calendar-week',
+        'controller' => \ScheduleController::class, 'url' => 'schedules',
+    ],
+    'kiosco' => [
+        'label' => 'Quiosco de asistencia',
+        'nav' => false,
+        'group' => 'Personal',
+        'icon' => 'fa-desktop',
+        'controller' => KioskController::class,
+        'url' => 'kiosco',
+    ],
+    // Listado de las marcaciones que hizo el quiosco (QR o rostro). A diferencia
+    // de 'kiosco' (la pantalla de pared, sin gate) este es un modulo normal:
+    // si no hay fila en role_permissions, nadie lo ve salvo el administrador.
+    'kiosk_log' => [
+        'label' => 'Registros del Quiosco',
+        'group' => 'Personal',
+        'icon' => 'fa-clipboard-user',
+        'controller' => \KioskLogController::class,
+        'url' => 'kiosk_log',
+    ],
     'profile' => [
-        'label' => 'Mi Perfil', 'group' => 'Personal', 'icon' => 'fa-user',
+        'label' => 'Mi Perfil', 'nav' => false, 'group' => 'Personal', 'icon' => 'fa-user',
         'controller' => 'ProfileController', 'url' => 'profile',
         'always' => true,
     ],

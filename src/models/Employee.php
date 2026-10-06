@@ -24,6 +24,7 @@ class Employee
         $query = "SELECT e.id, e.name, e.last_name, e.id_document, e.email, e.role_id,
                          r.name AS role, r.is_admin AS role_is_admin,
                          e.phone, e.address, e.profile_photo, e.birth_date, e.hire_date, e.base_salary, e.status,
+                         e.qr_token,
                          (e.password_hash IS NOT NULL) AS has_login
                     FROM " . $this->table . " e
                     JOIN roles r ON r.id = e.role_id
@@ -40,6 +41,7 @@ class Employee
         $query = "SELECT e.id, e.name, e.last_name, e.id_document, e.email, e.role_id,
                          r.name AS role, r.is_admin AS role_is_admin,
                          e.phone, e.address, e.profile_photo, e.birth_date, e.hire_date, e.base_salary, e.status,
+                         e.qr_token,
                          (e.password_hash IS NOT NULL) AS has_login
                     FROM " . $this->table . " e
                     JOIN roles r ON r.id = e.role_id
@@ -106,12 +108,20 @@ class Employee
 
     public function update($id, $name, $last_name, $idDocument, $email, $password_hash, $roleId, $phone, $address, $birth_date, $hire_date, $baseSalary, $status, $profilePhoto = null)
     {
+        // email y password_hash se mueven juntos: chk_empleados_login exige los
+        // dos o ninguno. Si el email va vacio se elimina la cuenta de acceso
+        // (hash incluido); si viene pero sin password, se conserva el hash
+        // actual. Con COALESCE(:password_hash, password_hash) pelado, anular el
+        // email dejaba el hash huerfano y el UPDATE reventaba el CHECK.
         $query = "UPDATE " . $this->table . "
                     SET name = :name,
                         last_name = :last_name,
                         id_document = :id_document,
-                        email = :email,
-                        password_hash = COALESCE(:password_hash, password_hash),
+                        email = NULLIF(:email, ''),
+                        password_hash = CASE
+                            WHEN NULLIF(:email, '') IS NULL THEN NULL
+                            ELSE COALESCE(:password_hash, password_hash)
+                        END,
                         role_id = :role_id,
                         phone = :phone,
                         address = :address,
@@ -126,8 +136,8 @@ class Employee
         $stmt->bindParam(':name', $name);
         $stmt->bindParam(':last_name', $last_name);
         $stmt->bindParam(':id_document', $idDocument);
-        $stmt->bindParam(':email', $email);
-        $stmt->bindParam(':password_hash', $password_hash, $password_hash === null ? PDO::PARAM_NULL : PDO::PARAM_STR);
+        $stmt->bindValue(':email', $email === null ? null : (string) $email, $email === null ? PDO::PARAM_NULL : PDO::PARAM_STR);
+        $stmt->bindValue(':password_hash', $password_hash, $password_hash === null ? PDO::PARAM_NULL : PDO::PARAM_STR);
         $roleId = (int) $roleId;
         $stmt->bindParam(':role_id', $roleId, PDO::PARAM_INT);
         $stmt->bindParam(':phone', $phone);
@@ -162,6 +172,64 @@ class Employee
         $stmt->bindParam(':id', $id, PDO::PARAM_INT);
 
         return $stmt->execute();
+    }
+
+    /**
+     * Resuelve un token de QR al empleado activo que lo porta. Es el camino
+     * "sin cara" del quiosco: si el token existe y el empleado esta activo,
+     * devuelve el registro; cualquier otra cosa devuelve null.
+     */
+    public function findByQrToken($token)
+    {
+        if (!is_string($token) || $token === '') {
+            return null;
+        }
+
+        $stmt = $this->conn->prepare(
+            "SELECT id, name, last_name, email, profile_photo, status
+             FROM " . $this->table . "
+             WHERE qr_token = ? AND status = 'active'
+             LIMIT 1"
+        );
+        $stmt->bindValue(1, $token);
+        $stmt->execute();
+        $fila = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        return $fila ?: null;
+    }
+
+    /**
+     * Token del codigo QR de asistencia, generado bajo demanda la primera vez.
+     * No es una credencial de inicio de sesion: solo identifica al empleado en
+     * el reloj de marcacion.
+     */
+    public function qrToken($id)
+    {
+        $stmt = $this->conn->prepare("SELECT qr_token FROM " . $this->table . " WHERE id = ?");
+        $stmt->bindValue(1, (int) $id, PDO::PARAM_INT);
+        $stmt->execute();
+        $token = $stmt->fetchColumn();
+
+        if ($token !== false && $token !== null && $token !== '') {
+            return $token;
+        }
+
+        return $this->regenerateQr($id);
+    }
+
+    /**
+     * Emite un token nuevo e invalida el QR impreso anterior.
+     */
+    public function regenerateQr($id)
+    {
+        $nuevo = bin2hex(random_bytes(16));
+
+        $stmt = $this->conn->prepare("UPDATE " . $this->table . " SET qr_token = ? WHERE id = ?");
+        $stmt->bindValue(1, $nuevo);
+        $stmt->bindValue(2, (int) $id, PDO::PARAM_INT);
+        $stmt->execute();
+
+        return $nuevo;
     }
 
     public function delete($id)

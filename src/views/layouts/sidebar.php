@@ -38,13 +38,19 @@
         // El menú se arma desde el catálogo de módulos (src/config/permisos.php):
         // solo se muestra lo que el usuario en sesión puede ver.
         $navGroups = Permiso::modulosPorGrupo();
-        $navOrder = ['Punto de Venta', 'Sistema', 'Catálogo', 'Operaciones', 'Reportes', 'Configuración'];
+        $navOrder = ['Punto de Venta', 'Sistema', 'Catálogo', 'Operaciones', 'Personal', 'Reportes', 'Configuración'];
         ?>
         <nav class="flex-1 overflow-y-auto px-3 py-4 space-y-5">
 
             <?php foreach ($navOrder as $groupName):
                 $groupItems = [];
                 foreach ($navGroups[$groupName] ?? [] as $key => $modulo) {
+                    // 'nav' => false = existe como módulo (gate y matriz) pero
+                    // no se muestra en el menú (Mi Perfil vive en el user-row,
+                    // el quiosco tiene su propia pantalla).
+                    if (isset($modulo['nav']) && $modulo['nav'] === false) {
+                        continue;
+                    }
                     if (puede($key)) {
                         $groupItems[$key] = $modulo;
                     }
@@ -101,5 +107,164 @@
                 title="Abrir menú" aria-label="Abrir menú">
             <i class="fa-solid fa-bars"></i>
         </button>
+
+        <?php
+        // Campana de notificaciones (visible para cualquier empleado logueado).
+        $notifNoLeidas = 0;
+        $notifUltimas = [];
+        $notifUserId = (int) ($_SESSION['user']['id'] ?? 0);
+
+        if ($notifUserId > 0 && isset($GLOBALS['__db'])) {
+            try {
+                $notifModel = new Notificacion($GLOBALS['__db']);
+                $notifNoLeidas = (int) $notifModel->noLeidas($notifUserId);
+                $notifUltimas = $notifModel->para($notifUserId, 5);
+            } catch (\Throwable $notifEx) {
+                $notifNoLeidas = 0;
+                $notifUltimas = [];
+            }
+        }
+
+        $notifIcons = [
+            'pedido_nuevo'     => ['fa-bag-shopping', 'text-blue-500'],
+            'pedido_estado'    => ['fa-right-left', 'text-indigo-500'],
+            'pedido_rechazado' => ['fa-circle-xmark', 'text-red-500'],
+            'pedido_cancelado' => ['fa-xmark', 'text-gray-400'],
+            'pedido_listo'     => ['fa-circle-check', 'text-green-500'],
+            'stock_bajo'       => ['fa-box-open', 'text-amber-500'],
+        ];
+        ?>
+        <script>window.__notifUserId = <?= $notifUserId ?>;</script>
+
+        <div id="notificationsBell" class="fixed top-3 right-16 lg:right-4 z-50">
+            <button type="button" id="notifToggle"
+                    class="relative w-10 h-10 rounded-xl bg-white border border-gray-200 shadow-lg shadow-gray-200/60 flex items-center justify-center text-gray-500 hover:text-blue-600 transition-colors"
+                    title="Notificaciones" aria-label="Notificaciones">
+                <i class="fa-regular fa-bell"></i>
+                <span id="notifBadge" class="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold items-center justify-center <?= $notifNoLeidas > 0 ? 'flex' : 'hidden' ?>">
+                    <?= min($notifNoLeidas, 99) ?>
+                </span>
+            </button>
+
+            <div id="notifPanel" class="hidden absolute right-0 mt-2 w-80 sm:w-96 bg-white border border-gray-200 rounded-2xl shadow-2xl shadow-gray-300/40 overflow-hidden">
+                <div class="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+                    <p class="text-sm font-semibold text-gray-900">Notificaciones</p>
+                    <div class="flex items-center gap-2">
+                        <button type="button" id="notifMarkAll"
+                                class="text-xs font-medium text-blue-600 hover:text-blue-700 <?= $notifNoLeidas > 0 ? '' : 'opacity-40 pointer-events-none' ?>">
+                            Marcar leídas
+                        </button>
+                        <a href="<?= url('notifications') ?>" class="text-xs font-medium text-gray-400 hover:text-gray-600">
+                            Ver todas
+                        </a>
+                    </div>
+                </div>
+                <div id="notifList" data-global="<?= esc(url('notifications/leer')) ?>">
+                    <?php if ($notifUltimas): ?>
+                        <?php foreach ($notifUltimas as $notif): ?>
+                            <?php $notifMeta = $notifIcons[$notif['notification_type']] ?? ['fa-bell', 'text-gray-400']; ?>
+                            <?php $notifEnlace = Notificacion::enlace($notif['reference_type'], (int) $notif['reference_id']); ?>
+                            <a href="<?= $notifEnlace ? url($notifEnlace) : 'javascript:void(0)' ?>"
+                               data-id="<?= (int) $notif['id'] ?>"
+                               class="notif-item flex items-start gap-3 px-4 py-3 border-b border-gray-50 hover:bg-blue-50/50 transition-colors <?= $notif['readed'] ? '' : 'bg-blue-50/40' ?>">
+                                <i class="fa-solid <?= esc($notifMeta[0]) ?> <?= esc($notifMeta[1]) ?> text-base mt-0.5"></i>
+                                <div class="flex-1 min-w-0">
+                                    <p class="text-sm text-gray-800 leading-snug">
+                                        <?= esc($notif['message'] !== null && $notif['message'] !== '' ? $notif['message'] : $notif['title']) ?>
+                                    </p>
+                                    <p class="text-xs text-gray-400 mt-0.5"><?= esc(date('d/m H:i', strtotime($notif['creation_date']))) ?></p>
+                                </div>
+                                <?php if (!$notif['readed']): ?>
+                                    <span class="shrink-0 w-2 h-2 rounded-full bg-blue-500 mt-1.5"></span>
+                                <?php endif; ?>
+                            </a>
+                        <?php endforeach; ?>
+                    <?php else: ?>
+                        <p id="notifEmpty" class="text-center text-xs text-gray-400 px-4 py-8">No hay notificaciones.</p>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </div>
+
+        <script>
+        (function () {
+            const bell = document.getElementById('notificationsBell');
+
+            if (!bell || !window.__notifUserId) {
+                return;
+            }
+
+            const toggle = document.getElementById('notifToggle');
+            const panel = document.getElementById('notifPanel');
+            const badge = document.getElementById('notifBadge');
+            const list = document.getElementById('notifList');
+
+            window.notifRefrescar = function (datos) {
+                const noLeidas = (datos && datos.no_leidas) ? parseInt(datos.no_leidas, 10) : 0;
+
+                if (noLeidas > 0) {
+                    badge.textContent = Math.min(noLeidas, 99);
+                    badge.classList.remove('hidden');
+                    badge.classList.add('flex');
+                } else {
+                    badge.classList.add('hidden');
+                    badge.classList.remove('flex');
+                }
+
+                const marcarTodo = document.getElementById('notifMarkAll');
+                if (marcarTodo) {
+                    marcarTodo.classList.toggle('opacity-40', noLeidas === 0);
+                    marcarTodo.classList.toggle('pointer-events-none', noLeidas === 0);
+                }
+            };
+
+            window.notifEnviar = function (url, datos) {
+                const body = new URLSearchParams(datos || {});
+
+                return fetch(url, { method: 'POST', body: body, headers: { 'X-Requested-With': 'fetch' } })
+                    .then((r) => r.json())
+                    .then((json) => window.notifRefrescar(json))
+                    .catch(() => null);
+            };
+
+            toggle.addEventListener('click', function (e) {
+                e.stopPropagation();
+                panel.classList.toggle('hidden');
+            });
+
+            document.addEventListener('click', function (e) {
+                if (!bell.contains(e.target)) {
+                    panel.classList.add('hidden');
+                }
+            });
+
+            list.addEventListener('click', function (e) {
+                const item = e.target.closest('.notif-item');
+
+                if (!item) {
+                    return;
+                }
+
+                const id = item.getAttribute('data-id');
+                window.notifEnviar(list.getAttribute('data-global') + '/' + id, {});
+
+                const href = item.getAttribute('href');
+                if (!href || href === 'javascript:void(0)') {
+                    e.preventDefault();
+                }
+            });
+
+            document.getElementById('notifMarkAll').addEventListener('click', function () {
+                window.notifEnviar(list.getAttribute('data-global'), {});
+            });
+
+            setInterval(function () {
+                fetch('<?= esc(url('notifications/unread')) ?>', { headers: { 'X-Requested-With': 'fetch' } })
+                    .then((r) => r.json())
+                    .then((json) => window.notifRefrescar(json))
+                    .catch(() => null);
+            }, 45000);
+        })();
+        </script>
 
         <?php if (file_exists(__DIR__ . '/breadcrumb.php')) require __DIR__ . '/breadcrumb.php'; ?>

@@ -32,10 +32,18 @@ return [
         'pos'        => PosController::class,
         'cash_register' => CashRegisterController::class,
         'suppliers' => SupplierController::class,
+        'purchases' => PurchaseController::class,
+        'attendance' => AttendanceController::class,
+        'schedules' => ScheduleController::class,
         'clients'    => ClientController::class,
         'employees'  => EmployeeController::class,
         'roles'      => RoleController::class,
         'audit'      => AuditController::class,
+'kiosco'       => KioskController::class,
+        'kiosk_log'    => KioskLogController::class,
+        'orders'       => OrderController::class,
+        'promotions'   => PromotionController::class,
+        'notifications' => NotificationController::class,
     ],
 
     // Ruta pública en español → método del SiteController

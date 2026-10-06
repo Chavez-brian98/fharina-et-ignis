@@ -60,6 +60,27 @@
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+                <div>
+                    <label for="tax_id" class="form-label">NIT/RUC/Identificación</label>
+                    <input type="text" id="tax_id" name="tax_id" class="form-input" value="<?= esc($settings['tax_id'] ?? '') ?>">
+                </div>
+                <div>
+                    <label for="branch_code" class="form-label">Código de sucursal</label>
+                    <input type="text" id="branch_code" name="branch_code" class="form-input" value="<?= esc($settings['branch_code'] ?? '') ?>" maxlength="10">
+                </div>
+                <div>
+                    <label for="terminal_id" class="form-label">Terminal</label>
+                    <input type="text" id="terminal_id" name="terminal_id" class="form-input" value="<?= esc($settings['terminal_id'] ?? '') ?>" maxlength="10">
+                </div>
+                <div>
+                    <label for="control_number" class="form-label">Número de control</label>
+                    <input type="text" id="control_number" name="control_number" class="form-input" value="<?= esc($settings['control_number'] ?? '') ?>" maxlength="20">
+                </div>
+                <div class="md:col-span-2">
+                    <label for="kiosk_key" class="form-label">Clave del quiosco de asistencia</label>
+                    <input type="text" id="kiosk_key" name="kiosk_key" class="form-input" value="<?= esc($settings['kiosk_key'] ?? '') ?>" maxlength="60">
+                    <p class="text-xs text-gray-400 mt-1.5">Usada para abrir/bloquear <strong>/kiosco</strong>. Solo un dispositivo compartido debería tenerla.</p>
+                </div>
                 <div class="md:col-span-1">
                     <label for="phone" class="form-label">Teléfono</label>
                     <input type="text" id="phone" name="phone" class="form-input" value="<?= esc($settings['phone'] ?? '') ?>">
@@ -77,6 +98,22 @@
                     <input type="number" id="cash_register_base" name="cash_register_base" class="form-input"
                            value="<?= esc($settings['cash_register_base'] ?? '125.00') ?>" min="0" step="0.01">
                     <p class="text-xs text-gray-400 mt-1.5">Monto con el que se abre una caja por turno.</p>
+                </div>
+                <div class="md:col-span-1">
+                    <label for="timezone" class="form-label">Zona horaria</label>
+                    <select id="timezone" name="timezone" class="form-input">
+                        <?php
+                        $tzActual = $settings['timezone'] ?? 'America/El_Salvador';
+                        if (!array_key_exists($tzActual, timezoneOpciones())) {
+                            $tzActual = 'America/El_Salvador';
+                        }
+                        foreach (timezoneOpciones() as $zona => $etiqueta) : ?>
+                            <option value="<?= esc($zona) ?>" <?= $tzActual === $zona ? 'selected' : '' ?>>
+                                <?= esc($etiqueta) ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                    <p class="text-xs text-gray-400 mt-1.5">Define la hora de asistencia, caja y tickets.</p>
                 </div>
                 <div class="md:col-span-3">
                     <label for="address" class="form-label">Dirección</label>

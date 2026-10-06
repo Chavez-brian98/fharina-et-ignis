@@ -13,6 +13,70 @@ function esc($value)
 }
 
 /**
+ * Zona horaria del negocio (setting "timezone"). El sistema entero razona en
+ * esta zona, no en la del servidor: los contenedores corren en UTC y El
+ * Salvador es UTC-6, asi que sin esto las marcaciones de asistencia de la
+ * tarde se guardan en el dia siguiente.
+ */
+function appTimezone()
+{
+    $tz = trim((string) setting('timezone', ''));
+    if ($tz !== '' && in_array($tz, timezone_identifiers_list(), true)) {
+        return $tz;
+    }
+
+    return 'America/El_Salvador';
+}
+
+/**
+ * Zonas ofrecidas en Configuracion. Lista corta a proposito: son los paises
+ * donde una panaderia como esta tiene sentido instalarse.
+ */
+function timezoneOpciones()
+{
+    return [
+        'America/El_Salvador' => 'El Salvador',
+        'America/Guatemala' => 'Guatemala',
+        'America/Tegucigalpa' => 'Honduras',
+        'America/Managua' => 'Nicaragua',
+        'America/Costa_Rica' => 'Costa Rica',
+        'America/Panama' => 'Panamá',
+        'America/Mexico_City' => 'México',
+        'America/Bogota' => 'Colombia',
+        'America/Lima' => 'Perú',
+        'America/Santiago' => 'Chile',
+        'America/Argentina/Buenos_Aires' => 'Argentina',
+        'America/Santo_Domingo' => 'República Dominicana',
+        'Europe/Madrid' => 'España',
+        'UTC' => 'UTC (sin ajuste)',
+    ];
+}
+
+/**
+ * Alinea los tres relojes del sistema con la zona del negocio:
+ *   - PHP, para todo date()/strtotime() que muestra la app
+ *   - MySQL, para NOW()/CURDATE()/CURTIME()/CURRENT_TIMESTAMP, que son los que
+ *     usa Attendance y CashRegister para marcar entradas y abrir/cerrar caja.
+ *
+ * Si MySQL no tiene cargadas las tablas de zona horaria, cae al offset actual
+ * (que cubre el caso de un pais sin horario de verano; con DST habria que
+ * recalcular, pero es preferible a quedarse en UTC).
+ */
+function aplicarZonaHoraria(PDO $db)
+{
+    $tz = appTimezone();
+
+    date_default_timezone_set($tz);
+
+    try {
+        $db->exec('SET time_zone = ' . $db->quote($tz));
+    } catch (PDOException $e) {
+        $offset = (new DateTime('now', new DateTimeZone($tz)))->format('P');
+        $db->exec('SET time_zone = ' . $db->quote($offset));
+    }
+}
+
+/**
  * Devuelve el valor de una configuración del sistema.
  */
 function setting($key, $default = null)

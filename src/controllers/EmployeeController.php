@@ -4,6 +4,8 @@ require_once __DIR__ . '/../models/Employee.php';
 require_once __DIR__ . '/../models/Role.php';
 require_once __DIR__ . '/../models/Permiso.php';
 require_once __DIR__ . '/../models/AuditLog.php';
+require_once __DIR__ . '/../models/Shift.php';
+require_once __DIR__ . '/../models/EmpleadoFace.php';
 
 class EmployeeController
 {
@@ -11,6 +13,8 @@ class EmployeeController
     private $employeeModel;
     private $roleModel;
     private $auditModel;
+    private $shiftModel;
+    private $faceModel;
 
     public function __construct($db)
     {
@@ -18,12 +22,25 @@ class EmployeeController
         $this->employeeModel = new Employee($db);
         $this->roleModel = new Role($db);
         $this->auditModel = new AuditLog($db);
+        $this->shiftModel = new Shift($db);
+        $this->faceModel = new EmpleadoFace($db);
     }
 
     public function index()
     {
         $employees = $this->employeeModel->getAll();
         $roles = $this->roleModel->getAll();
+
+        $this->decoraQrYBiometria($employees);
+        $semana = $this->semanaActual();
+
+        // Un solo rango para toda la tabla: el modal de cada fila solo busca su
+        // semana en el array, en vez de una consulta por empleado.
+        $turnosSemana = [];
+        foreach ($this->shiftModel->rango($semana['desde'], $semana['hasta']) as $t) {
+            $turnosSemana[(int) $t['employee_id']][] = $t;
+        }
+
         $title = 'Empleados';
         $currentModule = 'employees';
         $breadcrumbs = [
@@ -34,9 +51,11 @@ class EmployeeController
         require_once __DIR__ . '/../views/employees/index.php';
     }
 
-    public function create()
+public function create()
     {
         $roles = $this->roleModel->getAllForSelect();
+        $esAdmin = Permiso::esAdminActual();
+        $rostro = null;
         $title = 'Nuevo Empleado';
         $currentModule = 'employees';
         $breadcrumbs = [
@@ -111,11 +130,18 @@ class EmployeeController
             exit;
         }
 
+        // Un alta siempre "cambia" la foto: si vino descriptor, es el rostro de
+        // esta foto recién subida.
+        $fotoCambio = $profilePhoto !== null;
+
         if ($this->employeeModel->create($name, $last_name, $idDocument, $login['email'], $login['password_hash'], $login['role_id'], $phone ?: null, $address ?: null, $birth_date, $hire_date, $baseSalary, $profilePhoto)) {
             $recordId = (int) $this->db->lastInsertId();
             $new = $this->employeeModel->getById($recordId);
             $this->auditModel->write('create', 'empleados', $recordId, null, $new ?: null, 'Empleado creado.');
-            flash('success', 'Empleado creado correctamente. Ya podés ajustar sus permisos desde el ícono del escudo.');
+
+            $mensajeBiometria = $this->aplicaBiometria($recordId, $fotoCambio);
+
+            flash('success', $mensajeBiometria ?: 'Empleado creado correctamente. Ya podés ajustar sus permisos desde el ícono del escudo.');
         } else {
             flash('error', 'No se pudo crear el empleado.');
         }
@@ -135,6 +161,8 @@ class EmployeeController
         }
 
         $roles = $this->roleModel->getAll();
+        $esAdmin = Permiso::esAdminActual();
+        $rostro = $esAdmin ? $this->faceModel->deEmpleado($id) : null;
         $title = 'Editar Empleado';
         $currentModule = 'employees';
         $breadcrumbs = [
@@ -218,15 +246,21 @@ class EmployeeController
             exit;
         }
 
+        $fotoPrevia = $employee['profile_photo'] ?? null;
+        $quitarFoto = isset($_POST['remove_profile_photo']);
+        $fotoCambio = $profilePhoto !== null || ($quitarFoto && $fotoPrevia);
+
         if ($profilePhoto === null) {
-            $profilePhoto = isset($_POST['remove_profile_photo']) ? null : (($employee['profile_photo'] ?? null) ?: null);
+            $profilePhoto = $quitarFoto ? null : ($fotoPrevia ?: null);
         }
 
         if ($this->employeeModel->update($id, $name, $last_name, $idDocument, $login['email'], $login['password_hash'], $login['role_id'], $phone ?: null, $address ?: null, $birth_date, $hire_date, $baseSalary, $status, $profilePhoto)) {
             $after = $this->employeeModel->getById($id);
             $this->auditModel->write('update', 'empleados', $id, $employee, $after ?: null, 'Empleado actualizado.');
 
-            flash('success', 'Empleado actualizado correctamente.');
+            $mensajeBiometria = $this->aplicaBiometria($id, $fotoCambio);
+
+            flash('success', $mensajeBiometria ?: 'Empleado actualizado correctamente.');
         } else {
             flash('error', 'No se pudo actualizar el empleado.');
         }
@@ -434,5 +468,185 @@ public function updatePermisos($id)
 
         header('Location: ' . url('employees'));
         exit;
+    }
+
+    // ==================================================================
+    // QR de asistencia
+    // ==================================================================
+
+    /**
+     * Emite un token nuevo para el empleado e invalida el QR anterior.
+     *
+     * Reservado a administradores: el gate de index.php ya exige el permiso
+     * 'edit' del módulo (qrRegenerate -> edit en Permiso::accionDeRuta), pero
+     * rotar el QR de un compañero no es una edición de ficha, así que se
+     * comprueba tambien el rol administrador.
+     */
+    public function qrRegenerate($id)
+    {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . url('employees'));
+            exit;
+        }
+
+        if (!$this->esAdmin()) {
+            flash('error', 'Solo un administrador puede generar el QR de un empleado.');
+            header('Location: ' . url('employees'));
+            exit;
+        }
+
+        $employee = $this->employeeModel->getById($id);
+
+        if (!$employee) {
+            flash('error', 'Empleado no encontrado.');
+            header('Location: ' . url('employees'));
+            exit;
+        }
+
+        $this->employeeModel->regenerateQr($id);
+
+        // En la bitácora solo va "había token / hay token nuevo": el valor viejo
+        // es una credencial que acaba de morir y el nuevo es la que sirve.
+        $this->auditModel->write(
+            'update',
+            'empleados',
+            $id,
+            ['qr_token' => '(emitido previamente)'],
+            ['qr_token' => '(nuevo)'],
+            'QR de asistencia regenerado.'
+        );
+
+        flash('success', 'QR generado. El código anterior ya no sirve.');
+        header('Location: ' . url('employees'));
+        exit;
+    }
+
+    // ==================================================================
+    // Biometría: enrolment facial desde la foto del empleado
+    // ==================================================================
+
+    /**
+     * Aplica el descriptor que viaja en el formulario del empleado y, si la foto
+     * cambió sin regenerarlo, descarta el rostro viejo: un embedding describes
+     * una cara, y si la foto ya es otra el vector guardado apunta a otra persona.
+     *
+     * Todo esto es exclusivo de administradores: un supervisor con permiso de
+     * edición no puede escribir en empleado_faces.
+     *
+     * @param int  $employeeId
+     * @param bool $fotoCambio si el alta/edición reemplaza o quita la foto
+     * @return string|null mensaje para el usuario, o null si no había nada que hacer
+     */
+    private function aplicaBiometria($employeeId, $fotoCambio)
+    {
+        if (!$this->esAdmin()) {
+            // Sin permisos de admin se ignoran los campos en silencio: no se
+            // avisa por la UI y el servidor no los honra.
+            return null;
+        }
+
+        $antesRostro = $this->faceModel->deEmpleado($employeeId);
+        $antesBitacora = $antesRostro
+            ? ['model' => $antesRostro['model'], 'quality' => $antesRostro['quality']]
+            : null;
+
+        if (isset($_POST['remove_face'])) {
+            if ($antesRostro) {
+                $this->faceModel->eliminar($employeeId);
+                $this->auditModel->write(
+                    'face_delete',
+                    'empleados',
+                    $employeeId,
+                    ['model' => $antesRostro['model']],
+                    null,
+                    'Datos biométricos eliminados desde la ficha del empleado.'
+                );
+                return 'Biometría eliminada. El empleado volverá a marcar solo con su QR.';
+            }
+            return null;
+        }
+
+        $descriptor = EmpleadoFace::normalizar($_POST['descriptor'] ?? null);
+
+        if ($descriptor !== null) {
+            $calidad = isset($_POST['quality']) && is_numeric($_POST['quality'])
+                ? (float) $_POST['quality']
+                : null;
+
+            $this->faceModel->registrar($employeeId, $descriptor, $calidad);
+
+            $this->auditModel->write(
+                'face_enroll',
+                'empleados',
+                $employeeId,
+                $antesBitacora,
+                // NUNCA el vector: es el dato biométrico en sí.
+                ['model' => EmpleadoFace::MODELO, 'quality' => $calidad],
+                'Rostro enrolado para el quiosco de asistencia.'
+            );
+
+            return null;
+        }
+
+        //Foto nueva + rostro viejo = descriptor obsoleto.
+        if ($fotoCambio && $antesRostro) {
+            $this->faceModel->eliminar($employeeId);
+            $this->auditModel->write(
+                'face_delete',
+                'empleados',
+                $employeeId,
+                ['model' => $antesRostro['model']],
+                null,
+                'Datos biométricos descartados al cambiar la foto de perfil.'
+            );
+
+            return 'La foto cambió, así que la biometría anterior quedó descartada. Generala de nuevo para poder marcar con el rostro.';
+        }
+
+        return null;
+    }
+
+    // ==================================================================
+    // Helpers
+    // ==================================================================
+
+    /** ¿El usuario en sesión es administrador? */
+    private function esAdmin()
+    {
+        return Permiso::esAdminActual();
+    }
+
+    /**
+     * Lunes y domingo de la semana en curso, sobre el reloj de MySQL.
+     * Misma regla que usa ScheduleController::semanaDe().
+     */
+    private function semanaActual()
+    {
+        $d = new DateTime(Attendance::fechaDeMySQL());
+        $lunes = clone $d;
+        $lunes->modify('-' . (($d->format('w') == 0 ? 6 : $d->format('w')) - 1) . ' days');
+        $domingo = clone $lunes;
+        $domingo->modify('+6 days');
+
+        return [
+            'desde' => $lunes->format('Y-m-d'),
+            'hasta' => $domingo->format('Y-m-d'),
+        ];
+    }
+
+    /**
+     * Agrega a cada fila lo que necesitan los modales: si tiene rostro y si
+     * tiene QR emitido. El token NO se genera acá (serían N UPDATE por visita);
+     * si falta, la vista ofrece emitirlo.
+     */
+    private function decoraQrYBiometria(array &$employees)
+    {
+        foreach ($employees as $i => $emp) {
+            $rostro = $this->faceModel->deEmpleado((int) $emp['id']);
+
+            $employees[$i]['face_enrolled'] = $rostro !== null;
+            $employees[$i]['face_created_at'] = $rostro['created_at'] ?? null;
+            $employees[$i]['face_quality'] = $rostro['quality'] ?? null;
+        }
     }
 }

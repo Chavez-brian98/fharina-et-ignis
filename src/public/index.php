@@ -28,6 +28,10 @@ $GLOBALS['__db'] = $db;
 // Configuración global de la app (tabla settings), disponible vía setting().
 $GLOBALS['__settings'] = (new Setting($db))->getAll();
 
+// Los tres relojes (PHP, MySQL y el de las columnas CURRENT_TIMESTAMP) tienen
+// que usar la zona del negocio, no la del contenedor (que es UTC).
+aplicarZonaHoraria($db);
+
 // --- Enrutado (definición en routes/web.php, resolución en core/Router.php) ---
 $router = new Router(require __DIR__ . '/../routes/web.php');
 $route = $router->resolve(isset($_GET['url']) ? trim($_GET['url'], '/') : '');
@@ -47,7 +51,9 @@ if ($route['controller'] === null) {
 // Control de permisos por módulo y acción (roles + excepciones por empleado).
 $routeModule = Permiso::moduloDeControlador($route['controller']);
 
-if ($routeModule !== null && !puede($routeModule, Permiso::accionDeRuta($route['action']))) {
+if ($route['controller'] === KioskController::class) {
+    // Quiosco público: no pasa por el gate de permisos.
+} elseif ($routeModule !== null && !puede($routeModule, Permiso::accionDeRuta($route['action']))) {
     http_response_code(403);
     $GLOBALS['__route_module'] = $routeModule;
     require __DIR__ . '/../views/errors/403.php';

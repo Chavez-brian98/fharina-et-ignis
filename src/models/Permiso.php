@@ -103,6 +103,55 @@ class Permiso
                 return 'create';
             case 'reopen':
                 return 'edit';
+            // Compras: recibir mercancía mueve stock y precios, así que exige
+            // el mismo permiso que editar la orden.
+            case 'receive':
+                return 'edit';
+            // Cancelar descarta la orden: mismo permiso que eliminarla.
+            case 'cancel':
+                return 'delete';
+            // Horarios: asignar un turno es crear. El ajuste manual de la
+            // asistencia de otro empleado es editar, y borrarla es eliminar.
+            case 'assign':
+                return 'create';
+            // Ajustar a mano la marcacion de OTRO empleado es editar, no ver:
+            // sin este caso caeria en el default 'view' y un rol de solo
+            // lectura podria corregir el registro de un compañero.
+            case 'attendance':
+                return 'edit';
+            case 'attendanceDelete':
+                return 'delete';
+            // Asignacion masiva por rango: crea turnos, asi que va con create.
+            case 'bulk':
+                return 'create';
+            // Marcaciones propias: el modulo 'attendance' es 'always', asi que
+            // el permiso efectivo no depende del rol. Se mapean a edit para que
+            // un rol sin 'view' explicito no quede bloqueado.
+            case 'checkin':
+            case 'checkout':
+            case 'breakStart':
+            case 'breakEnd':
+            case 'regenerateQr':
+                return 'edit';
+
+            // Empleados: emitir un QR nuevo invalida el anterior, asi que va con
+            // edit. Sin este caso cae en el default 'view' y un rol de solo
+            // lectura podria rotar el QR de un compañero.
+            case 'qrRegenerate':
+                return 'edit';
+
+            // Pedidos: mover el estado (aprobado->en produccion->... ) es una
+            // edicion del seguimiento; sin el caso caeria en 'view' y un rol de
+            // solo lectura podria avanzar pedidos.
+            case 'estado':
+                return 'edit';
+
+            // Promociones: generar/eliminar un cupon de una promocion equivale
+            // a crear/eliminar sobre el modulo (el prefijo no los captura).
+            case 'generarCupon':
+                return 'create';
+            case 'eliminarCupon':
+                return 'delete';
         }
 
         // Acciones compuestas que guardan datos sensibles desde un modal,
