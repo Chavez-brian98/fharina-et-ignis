@@ -18,6 +18,11 @@ $editable = in_array($order['state'], ['pendiente', 'aprobado'], true);
         </div>
     </div>
     <div class="flex items-center gap-2">
+        <?php if (!empty($delivery)): ?>
+            <a href="<?= url('deliveries/show/' . $delivery['id']) ?>" class="inline-flex items-center gap-2 rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-gray-800 transition-colors">
+                <i class="fa-solid fa-motorcycle"></i> Domicilio
+            </a>
+        <?php endif; ?>
         <?php if ($editable && puede('orders', 'edit')): ?>
             <a href="<?= url('orders/edit/' . $order['id']) ?>" class="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors">
                 <i class="fa-regular fa-pen-to-square"></i> Editar

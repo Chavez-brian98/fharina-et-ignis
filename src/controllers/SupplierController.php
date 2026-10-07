@@ -1,24 +1,28 @@
 <?php
 
 require_once __DIR__ . '/../models/Supplier.php';
+require_once __DIR__ . '/../models/Ingredient.php';
 require_once __DIR__ . '/../models/AuditLog.php';
 
 class SupplierController
 {
     private $db;
     private $supplierModel;
+    private $ingredientModel;
     private $auditModel;
 
     public function __construct($db)
     {
         $this->db = $db;
         $this->supplierModel = new Supplier($db);
+        $this->ingredientModel = new Ingredient($db);
         $this->auditModel = new AuditLog($db);
     }
 
     public function index()
     {
         $suppliers = $this->supplierModel->getAll();
+        $offersBySupplier = $this->supplierModel->getOffersBySupplier();
 
         $title = 'Proveedores';
         $currentModule = 'suppliers';
@@ -32,6 +36,8 @@ class SupplierController
 
     public function create()
     {
+        $ingredients = $this->ingredientModel->getAllForSelect();
+
         $title = 'Nuevo Proveedor';
         $currentModule = 'suppliers';
         $breadcrumbs = [
@@ -60,7 +66,9 @@ class SupplierController
         if ($this->supplierModel->create($data)) {
             $recordId = (int) $this->db->lastInsertId();
             $new = $this->supplierModel->getById($recordId);
-            $this->auditModel->write('create', 'proveedores', $recordId, null, $new ?: null, 'Proveedor creado.');
+            $this->saveOfertas($recordId, $data['ofertas']);
+            $this->auditModel->write('create', 'proveedores', $recordId, null, $new ?: null,
+                'Proveedor creado (' . count($data['ofertas']) . ' ingrediente(s) ofrecido(s)).');
             flash('success', 'Proveedor creado correctamente.');
         } else {
             flash('error', 'No se pudo crear el proveedor.');
@@ -79,6 +87,9 @@ class SupplierController
             header('Location: ' . url('suppliers'));
             exit;
         }
+
+        $offers = $this->supplierModel->getOffers($id);
+        $ingredients = $this->ingredientModel->getAllForSelect();
 
         $title = 'Editar Proveedor';
         $currentModule = 'suppliers';
@@ -115,7 +126,9 @@ class SupplierController
 
         if ($this->supplierModel->update($id, $data)) {
             $after = $this->supplierModel->getById($id);
-            $this->auditModel->write('update', 'proveedores', $id, $before, $after ?: null, 'Proveedor actualizado.');
+            $this->saveOfertas($id, $data['ofertas']);
+            $this->auditModel->write('update', 'proveedores', $id, $before, $after ?: null,
+                'Proveedor actualizado (' . count($data['ofertas']) . ' ingrediente(s) ofrecido(s)).');
             flash('success', 'Proveedor actualizado correctamente.');
         } else {
             flash('error', 'No se pudo actualizar el proveedor.');
@@ -162,6 +175,9 @@ class SupplierController
         }
         if ($refs['precios'] > 0) {
             $motivos[] = $refs['precios'] . ' registro(s) de historial de precios';
+        }
+        if ($refs['ofertas'] > 0) {
+            $motivos[] = $refs['ofertas'] . ' oferta(s) de ingredientes';
         }
 
         if ($motivos) {
@@ -220,6 +236,12 @@ class SupplierController
             return null;
         }
 
+        $ofertas = $this->ofertasDelPost();
+
+        if ($ofertas === null) {
+            return null;
+        }
+
         return [
             'name' => $name,
             'tax_id' => trim($_POST['tax_id'] ?? ''),
@@ -233,6 +255,72 @@ class SupplierController
             'payment_terms' => trim($_POST['payment_terms'] ?? ''),
             'notes' => trim($_POST['notes'] ?? ''),
             'status' => ($_POST['status'] ?? 'active') === 'inactive' ? 'inactive' : 'active',
+            'ofertas' => $ofertas,
         ];
+    }
+
+    /**
+     * Normaliza y valida las líneas de "ingredientes que ofrece" del POST.
+     * Cada línea es un ingrediente (escrito como texto) + su precio por unidad.
+     * Devuelve null (con flash) si una línea no existe o es inválida.
+     */
+    private function ofertasDelPost()
+    {
+        $nombres = $_POST['ingredient_name'] ?? [];
+        $precios = $_POST['unit_price'] ?? [];
+
+        if (!is_array($nombres) || !is_array($precios)) {
+            return [];
+        }
+
+        $ofertas = [];
+        $vistos = [];
+
+        foreach ($nombres as $i => $rawNombre) {
+            $nombre = trim((string) $rawNombre);
+
+            // Fila vacía: el usuario añadió una fila y la dejó sin ingrediente.
+            if ($nombre === '') {
+                continue;
+            }
+
+            $ingrediente = $this->ingredientModel->findByName($nombre);
+
+            if ($ingrediente === null) {
+                flash('error', 'El ingrediente "' . $nombre . '" no existe en el catálogo. Elige una de las sugerencias.');
+                return null;
+            }
+
+            $precioRaw = trim((string) ($precios[$i] ?? ''));
+            $precio = (float) str_replace(',', '.', $precioRaw);
+
+            if ($precioRaw === '' || !is_numeric(str_replace(',', '.', $precioRaw)) || $precio < 0) {
+                flash('error', 'Indica un precio válido (mayor o igual que cero) para cada ingrediente.');
+                return null;
+            }
+
+            $ingredientId = (int) $ingrediente['id'];
+
+            // Mismo ingrediente en dos filas: gana la última.
+            $vistos[$ingredientId] = true;
+            $ofertas[$ingredientId] = [
+                'ingredient_id' => $ingredientId,
+                'ingredient_name' => $ingrediente['name'],
+                'unit_price' => $precio,
+            ];
+        }
+
+        return array_values($ofertas);
+    }
+
+    /**
+     * Guarda las ofertas de ingredientes y avisa si la tablita no pudo
+     * actualizarse (el proveedor ya quedó creado/actualizado).
+     */
+    private function saveOfertas($supplierId, array $ofertas)
+    {
+        if (!$this->supplierModel->saveOffers($supplierId, $ofertas)) {
+            flash('warning', 'El proveedor se guardó, pero los ingredientes ofrecidos no pudieron actualizarse.');
+        }
     }
 }

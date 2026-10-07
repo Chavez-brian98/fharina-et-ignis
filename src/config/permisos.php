@@ -59,6 +59,12 @@ return [
         'label' => 'Pedidos', 'group' => 'Operaciones', 'icon' => 'fa-cake-candles',
         'controller' => \OrderController::class, 'url' => 'orders',
     ],
+    'domicilios' => [
+        // Entregas a domicilio en tiempo real: tracking con mapa + estados
+        // tomado/preparando/en_camino/finalizado. Lo opera el rol domiciliero.
+        'label' => 'Domicilios', 'group' => 'Operaciones', 'icon' => 'fa-motorcycle',
+        'controller' => \DeliveryController::class, 'url' => 'deliveries',
+    ],
     'promotions' => [
         'label' => 'Promociones', 'group' => 'Operaciones', 'icon' => 'fa-percent',
         'controller' => \PromotionController::class, 'url' => 'promotions',

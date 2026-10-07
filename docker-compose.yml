@@ -1,3 +1,6 @@
+# Las variables se leen ÚNICAMENTE de src/.env:
+#   docker compose --env-file src/.env up
+# Sin el flag se usan los defaults de cada ${VAR:-default}.
 services:
   # Contenedor de PHP-FPM
   app:
@@ -9,20 +12,37 @@ services:
       - ./src:/var/www/html
     depends_on:
       - db
+      - mailpit
+
+  # Relay WebSocket para el tracking de domicilios (posicion del domiciliero
+  # + eventos de estado). La app PHP le hace POST a ws:8090 y el navegador se
+  # conecta via el proxy /ws de nginx. Sin puerto de anfitrion: red interna.
+  ws:
+    image: node:20-alpine
+    working_dir: /srv/ws
+    command: sh -c "test -d node_modules || npm install --no-fund --no-audit; node server.js"
+    volumes:
+      - ./ws:/srv/ws
+      - ./src/.env:/srv/ws/.env:ro
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8090/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
 
   # Contenedor de Nginx
   web:
     image: nginx:alpine
     ports:
       - "${HTTP_PORT:-8080}:80"
-      - "${HTTPS_PORT:-443}:443" #puerto para el certificado SSL de la VM
+      - "${HTTPS_PORT:-443}:443"
     volumes:
       - ./src:/var/www/html
-      # Montamos el archivo de configuración de Nginx que creamos en el paso 2
       - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf
-      - "${SSL_CERTS_DIR:-./certs}:/etc/nginx/ssl" #certificado para la maquina virtual
+      - "${SSL_CERTS_DIR:-./certs}:/etc/nginx/ssl"
     depends_on:
       - app
+      - ws
 
   # Contenedor de Base de Datos
   db:
@@ -30,9 +50,20 @@ services:
     environment:
       MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-1234}
       MYSQL_DATABASE: ${DB_NAME:-fharina_et_ignis}
-      MYSQL_USER: ${DB_USER:-orellana}
-      MYSQL_PASSWORD: ${DB_PASSWORD:-1234}
+      MYSQL_USER: ${MYSQL_USER:-orellana}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-1234}
     ports:
       - "${DB_PORT:-3306}:3306"
     volumes:
       - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
+
+  # Captura de correos SMTP en desarrollo (Mailpit). UI: http://localhost:8025
+  mailpit:
+    image: axllent/mailpit:latest
+    restart: unless-stopped
+    ports:
+      - "8025:8025"
+      - "1025:1025"
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: 1
+      MP_SMTP_AUTH_ALLOW_INSECURE: 1

@@ -152,6 +152,17 @@ class Permiso
                 return 'create';
             case 'eliminarCupon':
                 return 'delete';
+
+            // Domicilios: tomar/avanzar el estado (tomado->preparando->en_camino
+            // ->finalizado) y reportar la posicion GPS del domiciliero son
+            // ediciones; sin estos casos un rol de solo lectura podria despachar
+            // pedidos y mover el marcador del mapa.
+            case 'asignar':
+            case 'avanzar':
+            case 'share':
+            case 'stopShare':
+            case 'location':
+                return 'edit';
         }
 
         // Acciones compuestas que guardan datos sensibles desde un modal,

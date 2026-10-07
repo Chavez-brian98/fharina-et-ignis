@@ -100,7 +100,7 @@ class Order
      */
     public function getAll($desde = null, $hasta = null, $estado = null)
     {
-        $sql = "SELECT p.id, p.order_date, p.delivery_date, p.delivery_address, p.state,
+        $sql = "SELECT p.id, p.order_type, p.order_date, p.delivery_date, p.delivery_address, p.state,
                        p.total, p.paid_amount, p.remaining_balance, p.rejection_reason,
                        c.id AS client_id, c.client_type, c.company_name, c.name AS client_name,
                        c.last_name AS client_last_name, c.phone
@@ -138,11 +138,11 @@ class Order
         $sql = "SELECT p.*, c.client_type, c.company_name, c.name AS client_name,
                        c.last_name AS client_last_name, c.phone, c.email, c.address AS client_address,
                        e.name AS emp_name, e.last_name AS emp_last_name
-                  FROM pedidos p
-                  JOIN clients c ON c.id = p.client_id
-                  JOIN empleados e ON e.id = p.recorded_by_employee_id
-                 WHERE p.id = :id
-                 LIMIT 1;";
+FROM pedidos p
+                   JOIN clients c ON c.id = p.client_id
+                   LEFT JOIN empleados e ON e.id = p.recorded_by_employee_id
+                  WHERE p.id = :id
+                  LIMIT 1;";
 
         $stmt = $this->conn->prepare($sql);
         $stmt->bindValue(':id', (int) $id, PDO::PARAM_INT);

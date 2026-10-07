@@ -140,6 +140,115 @@ class Supplier
     }
 
     /**
+     * Ofertas de un solo proveedor (para la vista de edición): líneas con el
+     * nombre del ingrediente, su unidad de medida y el precio ofrecido.
+     */
+    public function getOffers($supplierId)
+    {
+        $stmt = $this->conn->prepare(
+            "SELECT si.supplier_id, si.ingredient_id, si.unit_price,
+                    i.name AS ingredient_name, i.unit_of_measure
+               FROM supplier_ingredients si
+               JOIN ingredientes i ON i.id = si.ingredient_id
+              WHERE si.supplier_id = :supplier_id
+              ORDER BY i.name ASC;"
+        );
+        $stmt->bindParam(':supplier_id', $supplierId, PDO::PARAM_INT);
+        $stmt->execute();
+
+        return $stmt->fetchAll();
+    }
+
+    /**
+     * Todas las ofertas agrupadas por proveedor para el listado:
+     * [supplier_id => [fila, fila, ...]].
+     */
+    public function getOffersBySupplier()
+    {
+        $stmt = $this->conn->prepare(
+            "SELECT si.supplier_id, si.ingredient_id, si.unit_price,
+                    i.name AS ingredient_name, i.unit_of_measure
+               FROM supplier_ingredients si
+               JOIN ingredientes i ON i.id = si.ingredient_id
+              ORDER BY si.supplier_id ASC, i.name ASC;"
+        );
+        $stmt->execute();
+
+        $agrupadas = [];
+
+        foreach ($stmt->fetchAll() as $fila) {
+            $agrupadas[(int) $fila['supplier_id']][] = $fila;
+        }
+
+        return $agrupadas;
+    }
+
+    /**
+     * Mapa [supplier_id][ingredient_id] => unit_price, para que el módulo de
+     * Compras precargue el precio que ofrece cada proveedor al armar una orden.
+     */
+    public function getOffersPriceMap()
+    {
+        $stmt = $this->conn->prepare(
+            "SELECT supplier_id, ingredient_id, unit_price
+               FROM supplier_ingredients;"
+        );
+        $stmt->execute();
+
+        $mapa = [];
+
+        foreach ($stmt->fetchAll() as $fila) {
+            $mapa[(int) $fila['supplier_id']][(int) $fila['ingredient_id']] = (float) $fila['unit_price'];
+        }
+
+        return $mapa;
+    }
+
+    /**
+     * Reemplaza las ofertas de un proveedor (DELETE + INSERT transaccional).
+     * Cada elemento de $ofertas es ['ingredient_id' => int, 'unit_price' => float].
+     */
+    public function saveOffers($supplierId, array $ofertas)
+    {
+        $supplierId = (int) $supplierId;
+
+        try {
+            $this->conn->beginTransaction();
+
+            $stmtDel = $this->conn->prepare(
+                "DELETE FROM supplier_ingredients WHERE supplier_id = :supplier_id;"
+            );
+            $stmtDel->bindParam(':supplier_id', $supplierId, PDO::PARAM_INT);
+            $stmtDel->execute();
+
+            if ($ofertas) {
+                $stmtIns = $this->conn->prepare(
+                    "INSERT INTO supplier_ingredients (supplier_id, ingredient_id, unit_price)
+                     VALUES (:supplier_id, :ingredient_id, :unit_price);"
+                );
+                $stmtIns->bindParam(':supplier_id', $supplierId, PDO::PARAM_INT);
+
+                foreach ($ofertas as $oferta) {
+                    $ingredientId = (int) $oferta['ingredient_id'];
+                    $precio = (float) $oferta['unit_price'];
+
+                    $stmtIns->bindParam(':ingredient_id', $ingredientId, PDO::PARAM_INT);
+                    $stmtIns->bindParam(':unit_price', $precio);
+                    $stmtIns->execute();
+                }
+            }
+
+            $this->conn->commit();
+
+            return true;
+        } catch (PDOException $e) {
+            $this->conn->rollBack();
+
+            return false;
+        }
+    }
+
+    /**
      * La empresa no se repite; el correo también es único cuando viene.
      */
     public function nameExists($name, $excludeId = null)
@@ -264,8 +373,9 @@ class Supplier
 
     /**
      * Un proveedor no se puede borrar si algo lo referencia: ingredientes que
-     * lo tienen como proveedor principal, pedidos de compra o historial de
-     * precios. Devuelve el detalle para poder avisar en el flash.
+     * lo tienen como proveedor principal, pedidos de compra, historial de
+     * precios u ofertas de ingredientes. Devuelve el detalle para poder avisar
+     * en el flash.
      */
     public function countReferences($id)
     {
@@ -273,11 +383,13 @@ class Supplier
             "SELECT
                 (SELECT COUNT(*) FROM ingredientes WHERE main_supplier_id = :id1) AS ingredientes,
                 (SELECT COUNT(*) FROM purchase_orders WHERE supplier_id = :id2) AS pedidos,
-                (SELECT COUNT(*) FROM supplier_price_history WHERE supplier_id = :id3) AS precios;"
+                (SELECT COUNT(*) FROM supplier_price_history WHERE supplier_id = :id3) AS precios,
+                (SELECT COUNT(*) FROM supplier_ingredients WHERE supplier_id = :id4) AS ofertas;"
         );
         $stmt->bindParam(':id1', $id, PDO::PARAM_INT);
         $stmt->bindParam(':id2', $id, PDO::PARAM_INT);
         $stmt->bindParam(':id3', $id, PDO::PARAM_INT);
+        $stmt->bindParam(':id4', $id, PDO::PARAM_INT);
         $stmt->execute();
 
         $row = $stmt->fetch() ?: [];
@@ -286,6 +398,7 @@ class Supplier
             'ingredientes' => (int) ($row['ingredientes'] ?? 0),
             'pedidos' => (int) ($row['pedidos'] ?? 0),
             'precios' => (int) ($row['precios'] ?? 0),
+            'ofertas' => (int) ($row['ofertas'] ?? 0),
         ];
     }
 }

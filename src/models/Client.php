@@ -38,6 +38,42 @@ class Client
         return $stmt->fetch();
     }
 
+    /** Búsqueda por email con la password_hash incluida (login del portal). */
+    public function findByEmail($email)
+    {
+        $query = "SELECT id, name, last_name, phone, email, password_hash, address, status
+                    FROM " . $this->table . "
+                    WHERE email = :email
+                    LIMIT 1;";
+
+        $stmt = $this->conn->prepare($query);
+        $stmt->bindParam(':email', $email);
+        $stmt->execute();
+
+        return $stmt->fetch();
+    }
+
+    /**
+     * Alta desde el portal web (registro de clientes). Sin DUI, sin empresa:
+     * solo los datos que pide el formulario del sitio.
+     */
+    public function createWeb($name, $lastName, $phone, $email, $passwordHash, $address)
+    {
+        $query = "INSERT INTO " . $this->table . "
+                    (name, last_name, phone, email, password_hash, address, client_type)
+                    VALUES (:name, :last_name, :phone, :email, :password_hash, :address, 'persona');";
+
+        $stmt = $this->conn->prepare($query);
+        $stmt->bindParam(':name', $name);
+        $stmt->bindParam(':last_name', $lastName);
+        $stmt->bindParam(':phone', $phone);
+        $stmt->bindParam(':email', $email);
+        $stmt->bindParam(':password_hash', $passwordHash);
+        $stmt->bindParam(':address', $address);
+
+        return $stmt->execute();
+    }
+
     public function emailExists($email, $excludeId = null)
     {
         return $this->fieldExists('email', $email, $excludeId);

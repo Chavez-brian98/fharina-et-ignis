@@ -176,6 +176,21 @@ body.sidebar-collapsed .brand-box:hover .brand-expand {
     transform: translateY(0) scale(1);
 }
 
+/* Modal de detalle: tope de alto + scroll interno en el cuerpo, para que con
+   muchos campos (proveedores, productos) el panel no crezca sin control. */
+#detailModal .modal-panel {
+    display: flex;
+    flex-direction: column;
+    max-height: 88vh;
+}
+#detailModal .modal-panel > :first-child {
+    flex-shrink: 0;
+}
+#detailModalBody {
+    overflow-y: auto;
+    min-height: 0;
+}
+
 /* Formularios */
 .form-label {
     display: block;

@@ -9,6 +9,12 @@ foreach ($suppliers as $item) {
 }
 $tipos = array_keys($tipos);
 sort($tipos);
+
+$currency = setting('currency', '$');
+$fmtPrecio = function ($p) {
+    $v = number_format((float) $p, 4, '.', '');
+    return rtrim(rtrim($v, '0'), '.') === '' ? '0' : rtrim(rtrim($v, '0'), '.');
+};
 ?>
 
 <div class="flex items-center justify-between mb-6">
@@ -61,6 +67,13 @@ sort($tipos);
             <tbody id="crudTableBody">
                 <?php foreach ($suppliers as $item):
                     $dias = Supplier::diasTexto($item['availability_days']);
+                    $ofertas = $offersBySupplier[(int) $item['id']] ?? [];
+                    $ofertasTexto = '';
+                    foreach ($ofertas as $oferta) {
+                        $linea = $oferta['ingredient_name'] . ' — ' . $currency . $fmtPrecio($oferta['unit_price']) . '/' . $oferta['unit_of_measure'];
+                        $ofertasTexto .= ($ofertasTexto === '' ? '' : "\n") . $linea;
+                    }
+                    $nombresOfertas = implode(' ', array_column($ofertas, 'ingredient_name'));
                     $summary = json_encode([
                         'Tipo' => $item['supplier_type'] ?: '—',
                         'Encargado' => $item['contact'] ?: '—',
@@ -71,6 +84,7 @@ sort($tipos);
                         'NIT / RUC' => $item['tax_id'] ?: '—',
                         'Dirección' => $item['address'] ?: '—',
                         'Producto a proveer' => $item['supplies'] ?: '—',
+                        'Ingredientes y precios' => $ofertasTexto !== '' ? $ofertasTexto : '—',
                         'Días de disponibilidad' => $dias !== '' ? $dias : '—',
                         'Condiciones de pago' => $item['payment_terms'] ?: '—',
                         'Ingredientes que provee' => (int) $item['ingredients_count'],
@@ -84,7 +98,7 @@ sort($tipos);
                 <tr class="border-b border-gray-50 last:border-0 hover:bg-orange-50/40 transition-colors"
                     data-status="<?= esc($item['status']) ?>"
                     data-type="<?= esc($item['supplier_type']) ?>"
-                    data-search="<?= esc(strtolower(trim($item['name'] . ' ' . ($item['supplier_type'] ?? '') . ' ' . ($item['contact'] ?? '') . ' ' . ($item['phone'] ?? '') . ' ' . ($item['email'] ?? '') . ' ' . ($item['address'] ?? '') . ' ' . ($item['supplies'] ?? '') . ' ' . ($dias ?? '')))) ?>">
+                    data-search="<?= esc(strtolower(trim($item['name'] . ' ' . ($item['supplier_type'] ?? '') . ' ' . ($item['contact'] ?? '') . ' ' . ($item['phone'] ?? '') . ' ' . ($item['email'] ?? '') . ' ' . ($item['address'] ?? '') . ' ' . ($item['supplies'] ?? '') . ' ' . ($nombresOfertas ?? '') . ' ' . ($dias ?? '')))) ?>">
                     <td class="px-5 py-3.5">
                         <div class="flex items-center gap-3">
                             <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-orange-100 to-orange-50 text-orange-500 flex items-center justify-center shrink-0 ring-1 ring-orange-100 shadow-sm">
@@ -130,6 +144,7 @@ sort($tipos);
                             <button type="button" class="btn-action btn-detail" title="Ver detalle"
                                     data-title="<?= esc($item['name']) ?>"
                                     data-icon="fa-truck"
+                                    data-summary='<?= esc($summary) ?>'
                                     data-detail='<?= esc($detail) ?>'>
                                 <i class="fa-regular fa-eye"></i>
                             </button>

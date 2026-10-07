@@ -6,7 +6,7 @@
             <p class="text-sm font-semibold uppercase tracking-[0.25em] text-orange-500">Únete a la familia</p>
             <h1 class="mt-2 font-display text-3xl font-bold text-gray-900">Crea tu cuenta</h1>
             <p class="mt-2 text-sm text-gray-500 leading-relaxed">
-                Guarda tus datos de contacto y recibe nuestras promociones. Disponible próximamente.
+                Guarda tus datos de contacto y recibe tus pedidos a domicilio a la puerta de tu casa.
             </p>
 
             <form method="POST" action="<?= url('registro') ?>" class="mt-8 space-y-5">

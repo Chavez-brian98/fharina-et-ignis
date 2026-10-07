@@ -49,11 +49,12 @@ if ($route['controller'] === null) {
 }
 
 // Control de permisos por módulo y acción (roles + excepciones por empleado).
+// Las rutas públicas (sitio web, kiosco, /rastrear/<token>) no pasan por el gate.
 $routeModule = Permiso::moduloDeControlador($route['controller']);
 
 if ($route['controller'] === KioskController::class) {
     // Quiosco público: no pasa por el gate de permisos.
-} elseif ($routeModule !== null && !puede($routeModule, Permiso::accionDeRuta($route['action']))) {
+} elseif (!$route['public'] && $routeModule !== null && !puede($routeModule, Permiso::accionDeRuta($route['action']))) {
     http_response_code(403);
     $GLOBALS['__route_module'] = $routeModule;
     require __DIR__ . '/../views/errors/403.php';

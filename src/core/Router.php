@@ -13,7 +13,8 @@ class Router
         $this->controllers = $routes['controllers'] ?? [];
         $this->siteActions = $routes['site_actions'] ?? [];
         // /kiosco NO exige sesion: es compartido y se desbloquea con clave.
-        $this->publicRoutes = array_merge(array_keys($this->siteActions), ['auth', 'kiosco']);
+        // /rastrear (tracking público de un domicilio) tampoco exige sesión.
+        $this->publicRoutes = array_merge(array_keys($this->siteActions), ['auth', 'kiosco', 'rastrear']);
     }
 
     /**
@@ -36,6 +37,13 @@ class Router
             } elseif (!isset($segments[1])) {
                 $action = $this->siteActions[$key];
             }
+        }
+
+        // /rastrear/<token>: el segundo segmento es el token opaco (string),
+        // no un id numérico.
+        if ($key === 'rastrear') {
+            $action = 'rastrear';
+            $id = isset($segments[1]) ? (string) $segments[1] : null;
         }
 
         return [

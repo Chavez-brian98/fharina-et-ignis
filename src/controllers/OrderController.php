@@ -214,6 +214,13 @@ class OrderController
         $historial = $this->orders->getHistorial($id);
         $transiciones = $this->orders->transicionesDesde($order['state']);
 
+        // Si es un pedido a domicilio en línea, resolvemos su envío para que
+        // el módulo de Pedidos enlace al seguimiento.
+        require_once __DIR__ . '/../models/Delivery.php';
+        $delivery = ($order['order_type'] ?? '') === 'domicilio'
+            ? (new Delivery($this->db))->getByOrderId($id)
+            : null;
+
         $title = 'Pedido #' . $id;
         $currentModule = 'orders';
         $breadcrumbs = [

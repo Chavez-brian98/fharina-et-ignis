@@ -350,12 +350,21 @@ foreach ($details as $detalle) {
 <script>
 (function () {
     const CURRENCY = <?= json_encode($currency, JSON_UNESCAPED_UNICODE) ?>;
+    const OFFER_PRICES = <?= json_encode($offerPrices, JSON_UNESCAPED_UNICODE) ?> || {};
+    const supplierSelect = document.getElementById('supplier_id');
     const body = document.getElementById('linesBody');
     const totalLabel = document.getElementById('totalLabel');
     const editable = <?= $editable ? 'true' : 'false' ?>;
 
     function money(value) {
         return CURRENCY + Number(value || 0).toFixed(2);
+    }
+
+    // Precio que un proveedor ofrece por un ingrediente, si está configurado.
+    function precioOfrecido(supplierId, ingredientId) {
+        if (!supplierId || !OFFER_PRICES[supplierId]) return null;
+        const p = OFFER_PRICES[supplierId][ingredientId];
+        return (p === undefined || p === null) ? null : Number(p);
     }
 
     function recalc() {
@@ -378,8 +387,72 @@ foreach ($details as $detalle) {
     if (editable) {
         const template = document.getElementById('lineTemplate');
 
+        // Ids de los ingredientes que el proveedor seleccionado vende, o null si
+        // aún no hay proveedor (entonces la lista no se restringe).
+        function ingredientesDelProveedor() {
+            const sup = supplierSelect ? supplierSelect.value : '';
+            if (!sup || !OFFER_PRICES[sup]) return null;
+            return Object.keys(OFFER_PRICES[sup]);
+        }
+
+        // Deja en cada línea únicamente los ingredientes que el proveedor vende
+        // (los registrados en el módulo Proveedores). Si una línea ya tenía un
+        // ingrediente que ese proveedor no ofrece, se limpia dicha línea.
+        function filtrarLineasPorProveedor() {
+            const permitidos = ingredientesDelProveedor();
+            if (permitidos === null) return;
+
+            body.querySelectorAll('tr').forEach(function (row) {
+                const select = row.querySelector('.line-ingredient');
+                if (!select) return;
+
+                const actual = select.value;
+                let i = select.options.length;
+                while (i--) {
+                    const opt = select.options[i];
+                    if (opt.value !== '' && permitidos.indexOf(opt.value) === -1) {
+                        select.removeChild(opt);
+                    }
+                }
+
+                if (actual !== '' && permitidos.indexOf(actual) === -1) {
+                    select.value = '';
+                    const precio = row.querySelector('.line-price');
+                    const stock = row.querySelector('.line-stock');
+                    if (precio) precio.value = '';
+                    if (stock) stock.textContent = '';
+                }
+            });
+        }
+
+        // Al cambiar de proveedor se aplican sus precios ofrecidos a las líneas
+        // que ya tienen ingrediente elegido.
+        function precargarPreciosDeOferta() {
+            const sup = supplierSelect ? supplierSelect.value : '';
+            body.querySelectorAll('tr').forEach(function (row) {
+                const select = row.querySelector('.line-ingredient');
+                const option = select ? select.options[select.selectedIndex] : null;
+                if (!option || !option.value) return;
+                const oferta = precioOfrecido(sup, option.value);
+                if (oferta !== null) {
+                    row.querySelector('.line-price').value = oferta.toFixed(4);
+                }
+            });
+            recalc();
+        }
+
+        function sincronizarProveedor() {
+            filtrarLineasPorProveedor();
+            precargarPreciosDeOferta();
+        }
+
+        if (supplierSelect) {
+            supplierSelect.addEventListener('change', sincronizarProveedor);
+        }
+
         document.getElementById('addLine').addEventListener('click', function () {
             body.appendChild(template.content.cloneNode(true));
+            filtrarLineasPorProveedor();
             recalc();
         });
 
@@ -407,8 +480,9 @@ foreach ($details as $detalle) {
             const option = select.options[select.selectedIndex];
 
             if (option && option.value) {
+                const oferta = precioOfrecido(supplierSelect ? supplierSelect.value : '', option.value);
                 select.closest('tr').querySelector('.line-price').value =
-                    parseFloat(option.dataset.price || '0').toFixed(4);
+                    (oferta !== null ? oferta : parseFloat(option.dataset.price || '0')).toFixed(4);
             }
             recalc();
         });

@@ -3,10 +3,41 @@
     function old($key, $default = '') { return isset($_POST[$key]) ? htmlspecialchars($_POST[$key]) : $default; }
 } ?>
 <?php
+$currency = setting('currency', '$');
 $dias = [];
 if (isset($_POST['availability_days']) && is_array($_POST['availability_days'])) {
     $dias = $_POST['availability_days'];
 }
+// Filas de "ingredientes que ofrece": al redibujar tras un error se repinta lo
+// del POST (nombres escritos); si no, una sola fila vacía para empezar.
+$postedNames = isset($_POST['ingredient_name']) && is_array($_POST['ingredient_name']) ? $_POST['ingredient_name'] : [];
+$postedPrices = isset($_POST['unit_price']) && is_array($_POST['unit_price']) ? $_POST['unit_price'] : [];
+$ofertasRows = [];
+foreach ($postedNames as $i => $pNombre) {
+    $nombre = trim((string) $pNombre);
+    if ($nombre === '') {
+        continue;
+    }
+    $unit = '';
+    foreach ($ingredients as $ing) {
+        if (Ingredient::normalizar($ing['name']) === Ingredient::normalizar($nombre)) {
+            $unit = $ing['unit_of_measure'];
+            break;
+        }
+    }
+    $ofertasRows[] = [
+        'ingredient_name' => $nombre,
+        'unit_price' => isset($postedPrices[$i]) ? trim((string) $postedPrices[$i]) : '',
+        'unit' => $unit,
+    ];
+}
+if (!$ofertasRows) {
+    $ofertasRows[] = ['ingredient_name' => '', 'unit_price' => '', 'unit' => ''];
+}
+// Catálogo para el autocompletado (datalist) y para la pista de unidad en JS.
+$ofertasCatalogo = array_map(function ($ing) {
+    return ['n' => $ing['name'], 'u' => $ing['unit_of_measure']];
+}, $ingredients);
 ?>
 
 <div class="flex items-center justify-between mb-6">
@@ -71,7 +102,80 @@ if (isset($_POST['availability_days']) && is_array($_POST['availability_days']))
             <label for="supplies" class="form-label">Producto a proveer</label>
             <input type="text" id="supplies" name="supplies" class="form-input" value="<?= old('supplies') ?>"
                    placeholder="Ej: Harina de trigo, levadura, kraft" maxlength="255">
-            <p class="text-xs text-gray-400 mt-1.5">Separa varios productos con comas.</p>
+            <p class="text-xs text-gray-400 mt-1.5">Separa varios productos con comas. Los ingredientes que ofrece y su precio se registran abajo.</p>
+        </div>
+
+        <!-- Ingredientes que ofrece (y su precio) -->
+        <div class="md:col-span-2">
+            <div class="rounded-xl border border-gray-100 overflow-hidden">
+                <div class="flex items-center justify-between border-b border-gray-100 bg-gradient-to-r from-orange-50/60 to-white px-5 py-4">
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-900"><i class="fa-solid fa-basket-shopping text-orange-500 mr-2"></i>Ingredientes que ofrece</h3>
+                        <p class="text-xs text-gray-400 mt-0.5">Elige los ingredientes que entrega este proveedor y el precio por unidad.</p>
+                    </div>
+                    <button type="button" id="addOffer"
+                            class="inline-flex items-center gap-1.5 rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-semibold text-white shadow-md shadow-orange-500/25 hover:bg-orange-600 transition-all">
+                        <i class="fa-solid fa-plus"></i> Agregar
+                    </button>
+                </div>
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="border-b border-gray-100 text-left text-xs uppercase tracking-wider text-gray-400">
+                            <th class="px-5 py-2.5 font-semibold">Ingrediente</th>
+                            <th class="px-5 py-2.5 font-semibold w-52">Precio</th>
+                            <th class="px-3 py-2.5 font-semibold w-12"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="offersBody">
+                        <?php foreach ($ofertasRows as $fila): ?>
+                            <tr class="border-b border-gray-50 last:border-0">
+                                <td class="px-5 py-3">
+                                    <input type="text" name="ingredient_name[]" class="form-input offer-ingredient"
+                                           placeholder="Escribe el ingrediente…"
+                                           autocomplete="off" maxlength="120"
+                                           value="<?= esc($fila['ingredient_name']) ?>">
+                                </td>
+                                <td class="px-5 py-3">
+                                    <div class="relative">
+                                        <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm"><?= esc($currency) ?></span>
+                                        <input type="number" name="unit_price[]" step="0.0001" min="0" placeholder="0.00"
+                                               value="<?= esc($fila['unit_price']) ?>"
+                                               class="form-input offer-price pl-7">
+                                    </div>
+                                    <p class="text-xs text-gray-400 mt-1.5 offer-unit"><?= $fila['unit'] !== '' ? 'Precio por ' . esc($fila['unit']) : 'Precio por unidad de medida' ?></p>
+                                </td>
+                                <td class="px-3 py-3 text-center">
+                                    <button type="button" class="btn-action btn-remove-offer text-red-400 hover:bg-red-50" title="Quitar">
+                                        <i class="fa-regular fa-trash-can"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+            <template id="offerTemplate">
+                <tr class="border-b border-gray-50 last:border-0">
+                    <td class="px-5 py-3">
+                        <input type="text" name="ingredient_name[]" class="form-input offer-ingredient"
+                               placeholder="Escribe el ingrediente…"
+                               autocomplete="off" maxlength="120">
+                    </td>
+                    <td class="px-5 py-3">
+                        <div class="relative">
+                            <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm"><?= esc($currency) ?></span>
+                            <input type="number" name="unit_price[]" step="0.0001" min="0" placeholder="0.00"
+                                   class="form-input offer-price pl-7">
+                        </div>
+                        <p class="text-xs text-gray-400 mt-1.5 offer-unit">Precio por unidad de medida</p>
+                    </td>
+                    <td class="px-3 py-3 text-center">
+                        <button type="button" class="btn-action btn-remove-offer text-red-400 hover:bg-red-50" title="Quitar">
+                            <i class="fa-regular fa-trash-can"></i>
+                        </button>
+                    </td>
+                </tr>
+            </template>
         </div>
 
         <div class="md:col-span-2">
@@ -120,3 +224,81 @@ if (isset($_POST['availability_days']) && is_array($_POST['availability_days']))
 </div>
 
 <?php require_once __DIR__ . '/../layouts/footer.php'; ?>
+
+<script>
+// Ofertas de ingredientes: agregar/quitar filas y sugerir la unidad escribiendo.
+// El ingrediente se escribe como texto (autocompletado vía datalist) y al
+// escribirse se valida contra el catálogo para mostrar su unidad de medida.
+(function () {
+    const body = document.getElementById('offersBody');
+    const template = document.getElementById('offerTemplate');
+    const addBtn = document.getElementById('addOffer');
+    if (!body || !template || !addBtn) return;
+
+    const CATALOGO = <?= json_encode($ofertasCatalogo, JSON_UNESCAPED_UNICODE) ?>;
+
+    function normalizar(texto) {
+        return texto.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+    }
+
+    function realRows() {
+        return Array.prototype.filter.call(body.querySelectorAll('tr'), function (row) {
+            return !row.classList.contains('offer-empty-row');
+        });
+    }
+
+    function repintarUnidades(row) {
+        const input = row.querySelector('.offer-ingredient');
+        const hint = row.querySelector('.offer-unit');
+        const precio = row.querySelector('.offer-price');
+        if (!input || !hint) return;
+
+        const valor = input.value.trim();
+        if (valor === '') {
+            hint.textContent = 'Precio por unidad de medida';
+            if (precio) precio.classList.remove('border-red-300');
+            return;
+        }
+
+        const objetivo = normalizar(valor);
+        const match = CATALOGO.find(function (ing) {
+            return normalizar(ing.n) === objetivo;
+        });
+
+        if (match) {
+            hint.textContent = 'Precio por ' + match.u;
+            if (precio) precio.classList.remove('border-red-300');
+        } else {
+            hint.textContent = 'Este ingrediente no está en el catálogo';
+            if (precio) precio.classList.add('border-red-300');
+        }
+    }
+
+    body.addEventListener('input', function (event) {
+        const input = event.target.closest('.offer-ingredient');
+        if (input) repintarUnidades(input.closest('tr'));
+    });
+
+    body.addEventListener('click', function (event) {
+        const remove = event.target.closest('.btn-remove-offer');
+        if (!remove) return;
+        const filas = realRows();
+        if (filas.length > 1) {
+            remove.closest('tr').remove();
+        } else {
+            const row = remove.closest('tr');
+            row.querySelector('.offer-ingredient').value = '';
+            row.querySelector('.offer-price').value = '';
+            repintarUnidades(row);
+        }
+    });
+
+    addBtn.addEventListener('click', function () {
+        body.querySelectorAll('.offer-empty-row').forEach(function (row) { row.remove(); });
+        const row = body.appendChild(template.content.cloneNode(true));
+        repintarUnidades(row);
+    });
+
+    realRows().forEach(repintarUnidades);
+})();
+</script>

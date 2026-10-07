@@ -21,6 +21,10 @@ return [
         'producto'   => SiteController::class,
         'ingresar'   => SiteController::class,
         'registro'   => SiteController::class,
+        // Checkout de pedidos a domicilio y seguimiento público por token.
+        'finalizar'  => SiteController::class,
+        'cuenta'     => SiteController::class,
+        'rastrear'   => DeliveryController::class,
 
         // Administración (requieren sesión, excepto auth)
         'auth'       => AuthController::class,
@@ -44,6 +48,7 @@ return [
         'orders'       => OrderController::class,
         'promotions'   => PromotionController::class,
         'notifications' => NotificationController::class,
+        'deliveries'   => DeliveryController::class,
     ],
 
     // Ruta pública en español → método del SiteController
@@ -56,5 +61,10 @@ return [
         'producto' => 'product',
         'ingresar' => 'login',
         'registro' => 'register',
+        'salir'    => 'logout',
+        // El checkout y la cuenta del cliente son públicos (los protege la
+        // sesión de cliente, no la de empleado).
+        'finalizar' => 'checkout',
+        'cuenta'    => 'account',
     ],
 ];

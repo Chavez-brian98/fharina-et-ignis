@@ -83,4 +83,61 @@ class Ingredient
 
         return (int) $row['total'] > 0;
     }
+
+    /**
+     * Resuelve un nombre de ingrediente (texto escrito por el usuario) contra el
+     * catálogo de ingredientes activos. Compara insensible a mayúsculas y a
+     * acentos para que "Harina de trigo", "harina de trigo" o "harina de trigó"
+     * apunten al mismo registro. Devuelve la fila o null.
+     */
+    public function findByName($name)
+    {
+        $objetivo = self::normalizar((string) $name);
+
+        if ($objetivo === '') {
+            return null;
+        }
+
+        $stmt = $this->conn->prepare(
+            "SELECT id, name, unit_of_measure FROM " . $this->table . "
+              WHERE status = 'active'
+              ORDER BY name ASC;"
+        );
+        $stmt->execute();
+
+        foreach ($stmt->fetchAll() as $ingrediente) {
+            if (self::normalizar($ingrediente['name']) === $objetivo) {
+                return $ingrediente;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Normaliza para comparar: minúsculas, sin acentos ni ñ. Reutilizada por el
+     * servidor (findByName) y por las vistas al volver a pintar el formulario.
+     */
+    public static function normalizar($texto)
+    {
+        $texto = mb_strtolower(trim((string) $texto), 'UTF-8');
+        $mapa = ['á' => 'a', 'é' => 'e', 'í' => 'i', 'ó' => 'o', 'ú' => 'u', 'ü' => 'u', 'ñ' => 'n'];
+
+        return strtr($texto, $mapa);
+    }
+
+    /**
+     * Ingredientes activos para los selects (ofertas de proveedores).
+     */
+    public function getAllForSelect()
+    {
+        $stmt = $this->conn->prepare(
+            "SELECT id, name, unit_of_measure FROM " . $this->table . "
+              WHERE status = 'active'
+              ORDER BY name ASC;"
+        );
+        $stmt->execute();
+
+        return $stmt->fetchAll();
+    }
 }

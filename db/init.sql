@@ -82,12 +82,18 @@ CREATE TABLE clients (
     company_name VARCHAR(150),
     phone VARCHAR(20),
     email VARCHAR(150) UNIQUE,
+    -- email sin password_hash = correo de contacto del POS (no obliga login).
+    -- password_hash sin email = imposible: el login del portal es por email.
+    password_hash VARCHAR(255),
     address VARCHAR(255),
     profile_photo VARCHAR(500),
     birth_date DATE,
     registration_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     status ENUM('active','inactive') NOT NULL DEFAULT 'active',
-    INDEX idx_clients_name (last_name, name)
+    INDEX idx_clients_name (last_name, name),
+    CONSTRAINT chk_clients_login CHECK (
+        password_hash IS NULL OR email IS NOT NULL
+    )
 ) ENGINE=InnoDB;
 
 CREATE TABLE client_segment (
@@ -377,6 +383,20 @@ CREATE TABLE supplier_price_history (
     INDEX idx_sph_price (supplier_id, ingredient_id, price_date)
 ) ENGINE=InnoDB;
 
+-- Qué ingrediente entrega cada proveedor y a qué precio (oferta vigente).
+-- La UNIQUE (supplier_id, ingredient_id) garantiza un precio por dupla; al
+-- cambiar de precio se actualiza la fila (el historial queda en la tabla de
+-- arriba, que escribe Compras al recibir mercancía).
+CREATE TABLE supplier_ingredients (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    supplier_id INT NOT NULL,
+    ingredient_id INT NOT NULL,
+    unit_price DECIMAL(10,4) NOT NULL,
+    UNIQUE KEY uq_supplier_ingredient (supplier_id, ingredient_id),
+    CONSTRAINT fk_si_supplier FOREIGN KEY (supplier_id) REFERENCES proveedores(id) ON DELETE CASCADE,
+    CONSTRAINT fk_si_ingredient FOREIGN KEY (ingredient_id) REFERENCES ingredientes(id)
+) ENGINE=InnoDB;
+
 CREATE TABLE purchase_orders (
     id INT AUTO_INCREMENT PRIMARY KEY,
     supplier_id INT NOT NULL,
@@ -568,11 +588,15 @@ CREATE TABLE sales_commissions (
 CREATE TABLE pedidos (
     id INT AUTO_INCREMENT PRIMARY KEY,
     client_id INT NOT NULL,
-    recorded_by_employee_id INT NOT NULL,
+    -- NULL = pedido colocado desde el portal web (no lo tomo un empleado).
+    recorded_by_employee_id INT NULL,
     order_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     delivery_date DATE NOT NULL,
     -- Dirección de entrega del pedido. NULL = se recoge en tienda.
     delivery_address VARCHAR(255) NULL,
+    -- reserva = pedido personalizado por encargo; domicilio = pedido en línea
+    -- del portal web que genera una fila en la tabla `deliveries`.
+    order_type ENUM('reserva','domicilio') NOT NULL DEFAULT 'reserva',
     state ENUM('pendiente','aprobado','en_produccion','listo','entregado','rechazado','cancelado') NOT NULL DEFAULT 'pendiente',
     rejection_reason VARCHAR(255),
     total DECIMAL(10,2) NOT NULL DEFAULT 0,
@@ -582,7 +606,8 @@ CREATE TABLE pedidos (
     CONSTRAINT fk_orders_client FOREIGN KEY (client_id) REFERENCES clients(id),
     CONSTRAINT fk_orders_employee FOREIGN KEY (recorded_by_employee_id) REFERENCES empleados(id),
     INDEX idx_orders_state (state),
-    INDEX idx_orders_date (order_date)
+    INDEX idx_orders_date (order_date),
+    INDEX idx_orders_type (order_type)
 ) ENGINE=InnoDB;
 
 CREATE TABLE order_details (
@@ -600,9 +625,13 @@ CREATE TABLE order_details (
 CREATE TABLE order_payments (
     id INT AUTO_INCREMENT PRIMARY KEY,
     order_id INT NOT NULL,
-    employee_id INT NOT NULL,
+    -- NULL cuando el pago se hizo en línea (PayPal): no lo registró un empleado.
+    employee_id INT NULL,
     amount DECIMAL(10,2) NOT NULL,
     payment_method VARCHAR(40) NOT NULL,
+    -- Referencias de la pasarela PayPal (sandbox/live) cuando el pago fue web.
+    paypal_order_id VARCHAR(64) NULL,
+    paypal_capture_id VARCHAR(64) NULL,
     payment_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_op_order FOREIGN KEY (order_id) REFERENCES pedidos(id),
     CONSTRAINT fk_op_employee FOREIGN KEY (employee_id) REFERENCES empleados(id),
@@ -644,6 +673,49 @@ CREATE TABLE email_notifications (
     sent_date TIMESTAMP NULL,
     CONSTRAINT fk_en_order FOREIGN KEY (order_id) REFERENCES pedidos(id),
     CONSTRAINT fk_en_client FOREIGN KEY (client_id) REFERENCES clients(id)
+) ENGINE=InnoDB;
+
+-- ----------------------------------------------------------------------------
+-- 8b. DOMICILIOS EN LÍNEA (depende de pedidos, empleados)
+-- Cada pedido a domicilio (pedidos.order_type='domicilio') genera UNA fila
+-- aquí con su propia máquina de estados (tomado -> preparando -> en_camino ->
+-- finalizado), la coordenada de destino (geocodificada con Google en el
+-- checkout) y un token público para la página de seguimiento.
+-- ----------------------------------------------------------------------------
+CREATE TABLE deliveries (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    order_id INT NOT NULL,
+    driver_id INT NULL,
+    state ENUM('tomado','preparando','en_camino','finalizado') NOT NULL DEFAULT 'tomado',
+    destination_lat DECIMAL(10,7) NULL,
+    destination_lng DECIMAL(10,7) NULL,
+    destination_address VARCHAR(255) NOT NULL,
+    tracking_token VARCHAR(64) NOT NULL UNIQUE,
+    assigned_at TIMESTAMP NULL,
+    -- Última posición recibida del navegador del domiciliero: permite marcar
+    -- "sin conexión" cuando last_seen_at queda muy atrás.
+    last_seen_at TIMESTAMP NULL,
+    tomado_at TIMESTAMP NULL,
+    preparando_at TIMESTAMP NULL,
+    en_camino_at TIMESTAMP NULL,
+    finalizado_at TIMESTAMP NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_delivery_order (order_id),
+    CONSTRAINT fk_del_order FOREIGN KEY (order_id) REFERENCES pedidos(id),
+    CONSTRAINT fk_del_driver FOREIGN KEY (driver_id) REFERENCES empleados(id),
+    INDEX idx_del_state (state)
+) ENGINE=InnoDB;
+
+-- Historial de posiciones GPS que va reportando el domiciliero (geolocation
+-- del navegador). La última posición también vive en memoria en el relay WS.
+CREATE TABLE delivery_locations (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    delivery_id INT NOT NULL,
+    lat DECIMAL(10,7) NOT NULL,
+    lng DECIMAL(10,7) NOT NULL,
+    reported_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_dl_delivery FOREIGN KEY (delivery_id) REFERENCES deliveries(id) ON DELETE CASCADE,
+    INDEX idx_dl_delivery (delivery_id)
 ) ENGINE=InnoDB;
 
 -- ----------------------------------------------------------------------------
@@ -829,7 +901,11 @@ INSERT INTO role_permissions (role_id, module, can_view, can_create, can_edit, c
 -- Horarios: los demas roles solo usan 'Mi Asistencia' (modulo 'always').
 -- Un cajero puede VER el roster del dia, pero no asignar turnos ni corregir
 -- la marcacion de un companero.
-(3, 'schedules', 1, 0, 0, 0);
+(3, 'schedules', 1, 0, 0, 0),
+-- Domicilios: el sub jefe supervisa todos los despachos; el domiciliero
+-- consulta, se asigna pedidos (create) y avanza estados (edit); no borra.
+(2, 'domicilios', 1, 1, 1, 1),
+(6, 'domicilios', 1, 1, 1, 0);
 
 -- ----------------------------------------------------------------------------
 -- DASHBOARD SEED (empleados, promociones, caja, ventas, pedidos)
@@ -870,6 +946,12 @@ INSERT INTO supplier_price_history (supplier_id, ingredient_id, price, price_dat
 (1, 1, 1.2500, DATE_SUB(CURDATE(), INTERVAL 7 DAY)),
 (1, 2, 5.0000, DATE_SUB(CURDATE(), INTERVAL 7 DAY)),
 (2, 3, 4.5000, DATE_SUB(CURDATE(), INTERVAL 1 DAY));
+
+-- Ofertas de los proveedores: qué ingrediente entrega cada uno y a qué precio.
+INSERT INTO supplier_ingredients (supplier_id, ingredient_id, unit_price) VALUES
+(1, 1, 1.2500),
+(1, 2, 5.0000),
+(2, 3, 4.5000);
 
 INSERT INTO ingredient_inventory_movements (ingredient_id, movement_type, quantity, reason, employee_id, reference) VALUES
 (1, 'entrada', 60.000, 'Recepción de compra #1', 3, 'Compra #1'),

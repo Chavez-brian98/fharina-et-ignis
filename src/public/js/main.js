@@ -211,19 +211,6 @@ document.addEventListener('DOMContentLoaded', function () {
     // ==========================================================================
     const modal = document.getElementById('detailModal');
 
-    // El panel se limita al alto de la ventana y el cuerpo scrollea internamente:
-    // con muchos campos (proveedores, productos) el modal ya no crece sin tope.
-    if (modal) {
-        const panel = modal.querySelector('.modal-panel');
-        if (panel) {
-            panel.classList.add('flex', 'flex-col', 'max-h-[88vh]');
-            const header = panel.firstElementChild;
-            if (header) header.classList.add('shrink-0');
-        }
-        const detailBody = document.getElementById('detailModalBody');
-        if (detailBody) detailBody.classList.add('overflow-y-auto', 'min-h-0');
-    }
-
     function openModal() {
         if (!modal) return;
         modal.classList.add('open');

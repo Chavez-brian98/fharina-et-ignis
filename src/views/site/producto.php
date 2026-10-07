@@ -76,11 +76,19 @@ $available = (int) $product['stock'];
                 <?php endif; ?>
             </div>
 
-            <div class="mt-9 flex flex-wrap gap-4">
-                <a href="#" onclick="return false;" title="Próximamente"
-                   class="inline-flex items-center gap-2 bg-orange-500 text-white font-semibold px-8 py-4 rounded-full hover:bg-orange-600 transition-colors">
+            <div data-product-block class="mt-9 flex flex-wrap gap-4">
+                <div class="inline-flex items-center rounded-full ring-1 ring-gray-300">
+                    <button type="button" class="btn-qty w-12 h-12 text-lg text-gray-500 hover:text-gray-900"
+                            data-qty="-1" aria-label="Menos"><i class="fa-solid fa-minus"></i></button>
+                    <input type="number" name="qty" value="1" min="1" max="99" readonly
+                           class="w-14 h-12 text-center font-semibold text-gray-900 bg-transparent outline-none appearance-none">
+                    <button type="button" class="btn-qty w-12 h-12 text-lg text-gray-500 hover:text-gray-900"
+                            data-qty="1" aria-label="Más"><i class="fa-solid fa-plus"></i></button>
+                </div>
+                <button type="button" data-add-to-cart data-id="<?= (int) $product['id'] ?>" data-name="<?= esc($product['name']) ?>" data-price="<?= (float) $product['final_price'] ?>"
+                        class="inline-flex items-center gap-2 bg-orange-500 text-white font-semibold px-8 py-4 rounded-full hover:bg-orange-600 transition-colors <?= $available <= 0 ? 'opacity-50 pointer-events-none' : '' ?>">
                     <i class="fa-solid fa-cart-plus"></i> Agregar al carrito
-                </a>
+                </button>
                 <a href="<?= url('catalogo') ?>" class="inline-flex items-center gap-2 ring-1 ring-gray-300 text-gray-700 font-semibold px-8 py-4 rounded-full hover:bg-gray-50 transition-colors">
                     Seguir comprando
                 </a>

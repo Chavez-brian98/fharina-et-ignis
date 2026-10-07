@@ -150,12 +150,21 @@ $hoy = date('Y-m-d');
 <script>
 (function () {
     const CURRENCY = <?= json_encode($currency, JSON_UNESCAPED_UNICODE) ?>;
+    const OFFER_PRICES = <?= json_encode($offerPrices, JSON_UNESCAPED_UNICODE) ?> || {};
+    const supplierSelect = document.getElementById('supplier_id');
     const body = document.getElementById('linesBody');
     const template = document.getElementById('lineTemplate');
     const totalLabel = document.getElementById('totalLabel');
 
     function money(value) {
         return CURRENCY + Number(value || 0).toFixed(2);
+    }
+
+    // Precio que un proveedor ofrece por un ingrediente, si está configurado.
+    function precioOfrecido(supplierId, ingredientId) {
+        if (!supplierId || !OFFER_PRICES[supplierId]) return null;
+        const p = OFFER_PRICES[supplierId][ingredientId];
+        return (p === undefined || p === null) ? null : Number(p);
     }
 
     function recalc() {
@@ -178,13 +187,78 @@ $hoy = date('Y-m-d');
     function addLine() {
         const row = template.content.cloneNode(true);
         body.appendChild(row);
+        filtrarLineasPorProveedor();
         recalc();
+    }
+
+    // Ids de los ingredientes que el proveedor seleccionado vende, o null si aún
+    // no hay proveedor (entonces la lista no se restringe).
+    function ingredientesDelProveedor() {
+        const sup = supplierSelect ? supplierSelect.value : '';
+        if (!sup || !OFFER_PRICES[sup]) return null;
+        return Object.keys(OFFER_PRICES[sup]);
+    }
+
+    // Deja en cada línea únicamente los ingredientes que el proveedor vende
+    // (los registrados en el módulo Proveedores). Si una línea ya tenía un
+    // ingrediente que ese proveedor no ofrece, se limpia dicha línea.
+    function filtrarLineasPorProveedor() {
+        const permitidos = ingredientesDelProveedor();
+        if (permitidos === null) return;
+
+        body.querySelectorAll('tr').forEach(function (row) {
+            const select = row.querySelector('.line-ingredient');
+            if (!select) return;
+
+            const actual = select.value;
+            let i = select.options.length;
+            while (i--) {
+                const opt = select.options[i];
+                if (opt.value !== '' && permitidos.indexOf(opt.value) === -1) {
+                    select.removeChild(opt);
+                }
+            }
+
+            if (actual !== '' && permitidos.indexOf(actual) === -1) {
+                select.value = '';
+                const precio = row.querySelector('.line-price');
+                const stock = row.querySelector('.line-stock');
+                if (precio) precio.value = '';
+                if (stock) stock.textContent = '';
+            }
+        });
+    }
+
+    // Al cambiar de proveedor se aplican sus precios ofrecidos a las líneas que
+    // ya tienen ingrediente elegido.
+    function precargarPreciosDeOferta() {
+        const sup = supplierSelect ? supplierSelect.value : '';
+        body.querySelectorAll('tr').forEach(function (row) {
+            const select = row.querySelector('.line-ingredient');
+            const option = select ? select.options[select.selectedIndex] : null;
+            if (!option || !option.value) return;
+            const oferta = precioOfrecido(sup, option.value);
+            if (oferta !== null) {
+                row.querySelector('.line-price').value = oferta.toFixed(4);
+            }
+        });
+        recalc();
+    }
+
+    function sincronizarProveedor() {
+        filtrarLineasPorProveedor();
+        precargarPreciosDeOferta();
+    }
+
+    if (supplierSelect) {
+        supplierSelect.addEventListener('change', sincronizarProveedor);
     }
 
     body.addEventListener('input', recalc);
 
-    // Al elegir ingrediente se precarga el último precio conocido y se muestra
-    // el stock actual para poder compararlo con lo pedido.
+    // Al elegir ingrediente se precarga el precio conocido (o el que ofrece el
+    // proveedor seleccionado, que tiene prioridad) y se muestra el stock actual
+    // para poder compararlo con lo pedido.
     body.addEventListener('change', function (event) {
         const select = event.target.closest('.line-ingredient');
         const row = select ? select.closest('tr') : null;
@@ -193,16 +267,20 @@ $hoy = date('Y-m-d');
             const option = select.options[select.selectedIndex];
 
             if (option && option.value) {
-                row.querySelector('.line-price').value = parseFloat(option.dataset.price || '0').toFixed(4);
+                const oferta = precioOfrecido(supplierSelect ? supplierSelect.value : '', option.value);
+                row.querySelector('.line-price').value =
+                    (oferta !== null ? oferta : parseFloat(option.dataset.price || '0')).toFixed(4);
 
                 const stock = parseFloat(option.dataset.stock || '0');
                 const qty = parseFloat(row.querySelector('.line-qty').value || '0');
                 row.querySelector('.line-stock').textContent =
                     'Stock actual: ' + Number(stock).toLocaleString('es-SV', { maximumFractionDigits: 3 }) + ' ' + option.dataset.unit;
 
+                const ofertaDoc = oferta !== null ? ' — precio ofrecido por el proveedor' : '';
                 if (qty > 0 && qty > stock) {
                     row.querySelector('.line-stock').textContent += ' — la cantidad supera el stock';
                 }
+                row.querySelector('.line-stock').textContent += ofertaDoc;
             } else {
                 row.querySelector('.line-stock').textContent = '';
             }

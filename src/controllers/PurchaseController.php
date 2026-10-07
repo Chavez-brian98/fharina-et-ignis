@@ -50,6 +50,7 @@ class PurchaseController
     {
         $suppliers = $this->supplierModel->getAllForSelect();
         $ingredients = $this->ingredientModel->getAll();
+        $offerPrices = $this->supplierModel->getOffersPriceMap();
 
         $title = 'Nueva Compra';
         $currentModule = 'purchases';
@@ -108,6 +109,7 @@ class PurchaseController
 
         $suppliers = $this->supplierModel->getAllForSelect();
         $ingredients = $this->ingredientModel->getAll();
+        $offerPrices = $this->supplierModel->getOffersPriceMap();
 
         $editable = $purchase['state'] === 'pendiente' && !$receipts;
 

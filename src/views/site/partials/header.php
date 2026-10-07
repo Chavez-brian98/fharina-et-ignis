@@ -8,9 +8,17 @@ $navItems = [
     ['page' => 'contact', 'label' => 'Contáctanos', 'url' => url('contacto')],
 ];
 $sitePage = $sitePage ?? 'home';
-$flashSuccess = flash('success');
-$flashError = flash('error');
-$flashMessage = $flashSuccess ?? $flashError;
+$cliente = $_SESSION['cliente'] ?? null;
+$flashTipo = null;
+$flashMessage = null;
+foreach (['success', 'error', 'warning', 'info'] as $t) {
+    $msg = flash($t);
+    if ($msg !== null) {
+        $flashMessage = $msg;
+        $flashTipo = $t;
+        break;
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -37,11 +45,12 @@ $flashMessage = $flashSuccess ?? $flashError;
     <?php require __DIR__ . '/../../partials/theme.php'; ?>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js@1.12.0/src/toastify.css">
+    <script src="/js/cart.js"></script>
 </head>
 <body class="bg-white text-gray-800 antialiased font-sans">
 
 <?php if ($flashMessage): ?>
-<div id="flashToast" class="hidden" data-type="<?= $flashSuccess ? 'success' : 'error' ?>" data-message="<?= esc($flashMessage) ?>"></div>
+<div id="flashToast" class="hidden" data-type="<?= esc($flashTipo) ?>" data-message="<?= esc($flashMessage) ?>"></div>
 <?php endif; ?>
 
 <header class="sticky top-0 z-50 bg-white/95 backdrop-blur border-b border-gray-100">
@@ -77,15 +86,30 @@ $flashMessage = $flashSuccess ?? $flashError;
                 <a href="<?= url('carrito') ?>" title="Carrito de compras"
                    class="relative w-10 h-10 rounded-lg border border-gray-200 text-gray-700 hover:border-orange-300 hover:text-orange-600 flex items-center justify-center transition-colors">
                     <i class="fa-solid fa-cart-shopping"></i>
+                    <span data-cart-badge
+                          class="hidden absolute -top-1.5 -right-1.5 min-w-5 h-5 px-1 rounded-full bg-orange-500 text-white text-[11px] font-bold flex items-center justify-center">0</span>
                 </a>
-                <a href="<?= url('ingresar') ?>"
-                   class="hidden md:inline-flex items-center px-4 py-2 rounded-full text-sm font-semibold text-gray-700 hover:text-gray-900 transition-colors">
-                    Iniciar sesión
-                </a>
-                <a href="<?= url('registro') ?>"
-                   class="hidden md:inline-flex items-center px-4 py-2 rounded-full text-sm font-semibold bg-gray-900 text-white hover:bg-gray-700 transition-colors">
-                    Registrarse
-                </a>
+                <?php if ($cliente): ?>
+                    <a href="<?= url('cuenta') ?>"
+                       class="hidden md:inline-flex items-center px-4 py-2 rounded-full text-sm font-semibold text-gray-700 hover:text-gray-900 transition-colors"
+                       title="Mi cuenta">
+                        <i class="fa-solid fa-user mr-2"></i><?= esc($cliente['name']) ?>
+                    </a>
+                    <a href="<?= url('salir') ?>"
+                       class="hidden md:inline-flex items-center px-3 py-2 rounded-full text-sm font-medium text-gray-400 hover:text-gray-900 transition-colors"
+                       title="Cerrar sesión">
+                        <i class="fa-solid fa-right-from-bracket"></i>
+                    </a>
+                <?php else: ?>
+                    <a href="<?= url('ingresar') ?>"
+                       class="hidden md:inline-flex items-center px-4 py-2 rounded-full text-sm font-semibold text-gray-700 hover:text-gray-900 transition-colors">
+                        Iniciar sesión
+                    </a>
+                    <a href="<?= url('registro') ?>"
+                       class="hidden md:inline-flex items-center px-4 py-2 rounded-full text-sm font-semibold bg-gray-900 text-white hover:bg-gray-700 transition-colors">
+                        Registrarse
+                    </a>
+                <?php endif; ?>
                 <button id="siteMenuToggle" class="md:hidden w-10 h-10 rounded-lg border border-gray-200 text-gray-700 flex items-center justify-center" aria-label="Abrir menú">
                     <i class="fa-solid fa-bars"></i>
                 </button>

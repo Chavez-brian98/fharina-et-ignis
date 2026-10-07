@@ -148,7 +148,9 @@ class PosController
         $html = $this->renderTicketHtml($sale, $business);
 
         // Volcado opcional del HTML para inspeccionar el ticket sin abrir el PDF.
-        if (getenv('TICKET_DEBUG_HTML')) {
+        // phpdotenv puebla $_ENV (no el entorno del proceso), por eso no usamos getenv().
+        $ticketDebug = ($_ENV['TICKET_DEBUG_HTML'] ?? null) ?: getenv('TICKET_DEBUG_HTML');
+        if ($ticketDebug) {
             file_put_contents('/tmp/ticket_debug.html', $html);
         }
 
