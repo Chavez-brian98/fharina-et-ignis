@@ -6,7 +6,7 @@
             <p class="text-sm font-semibold uppercase tracking-[0.25em] text-orange-500">Bienvenido de nuevo</p>
             <h1 class="mt-2 font-display text-3xl font-bold text-gray-900">Inicia sesión</h1>
             <p class="mt-2 text-sm text-gray-500 leading-relaxed">
-                Accede para agilizar tus compras y consultar tus pedidos. Disponible próximamente.
+                Accede para agilizar tus compras y consultar tus pedidos a domicilio.
             </p>
 
             <form method="POST" action="<?= url('ingresar') ?>" class="mt-8 space-y-5">

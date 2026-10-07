@@ -122,6 +122,31 @@
                 </div>
             </div>
 
+            <?php if ($requiereCaja && !$caja): ?>
+                <div class="rounded-xl bg-amber-50 ring-1 ring-amber-200 px-3.5 py-3 text-sm text-amber-800">
+                    <p class="font-semibold flex items-center gap-1.5">
+                        <i class="fa-solid fa-triangle-exclamation"></i> Caja cerrada
+                    </p>
+                    <p class="mt-1 text-xs text-amber-700">
+                        Abrí tu caja para poder registrar ventas. Fondo base:
+                        <strong>$<?= esc(number_format((float) setting('cash_register_base', 125), 2)) ?></strong>.
+                    </p>
+                    <a href="<?= url('cash_register') ?>"
+                       class="mt-2.5 inline-flex items-center gap-1.5 rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-orange-600 transition-colors">
+                        <i class="fa-solid fa-lock-open"></i> Ir a abrir mi caja
+                    </a>
+                </div>
+            <?php elseif ($caja): ?>
+                <div class="flex items-center justify-between rounded-xl bg-green-50 ring-1 ring-green-100 px-3.5 py-2.5 text-sm">
+                    <span class="flex items-center gap-1.5 font-semibold text-green-700">
+                        <i class="fa-solid fa-cash-register"></i> Caja #<?= (int) $caja['id'] ?>
+                    </span>
+                    <span class="text-xs text-green-600">
+                        Esperado $<?= esc(number_format((float) $caja['expected_cash'], 2)) ?>
+                    </span>
+                </div>
+            <?php endif; ?>
+
             <div class="space-y-2.5">
                 <label class="form-label mb-1">Forma de pago</label>
                 <div class="relative">
@@ -180,6 +205,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
     const TAX_RATE = <?= $taxRate ?>;
     const CURRENCY = '<?= esc($currency) ?>';
+    // Quien tiene el modulo Caja debe tener una abierta para poder cobrar.
+    const CAJA_BLOQUEADA = <?= ($requiereCaja && !$caja) ? 'true' : 'false' ?>;
     const checkoutForm = document.getElementById('posCheckoutForm');
 
     // --- Estado -------------------------------------------------------------
@@ -323,7 +350,7 @@ document.addEventListener('DOMContentLoaded', function () {
             wrap.classList.add('hidden');
         }
 
-        btn.disabled = !(Object.keys(cart).length > 0 && paid >= total - 0.005);
+        btn.disabled = !(Object.keys(cart).length > 0 && paid >= total - 0.005) || CAJA_BLOQUEADA;
     }
 
     function getPaid() {
@@ -446,6 +473,19 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // --- Checkout ------------------------------------------------------------
     document.getElementById('posCheckout').addEventListener('click', function () {
+        if (CAJA_BLOQUEADA) {
+            Swal.fire({
+                title: 'Caja cerrada',
+                text: 'Abrí tu caja antes de registrar una venta.',
+                icon: 'warning',
+                confirmButtonText: 'Abrir mi caja',
+                showCancelButton: false
+            }).then(function () {
+                window.location = '<?= url('cash_register') ?>';
+            });
+            return;
+        }
+
         const items = [], payments = [];
 
         Object.values(cart).forEach(function (it) {

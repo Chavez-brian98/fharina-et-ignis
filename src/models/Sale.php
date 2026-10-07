@@ -69,10 +69,12 @@ class Sale
      * @param array $items     [['product_id'=>int, 'quantity'=>int], ...]
      * @param array $payments  [['method'=>'efectivo'|'tarjeta'|'transferencia', 'amount'=>float], ...]
      * @param float $taxRate   Porcentaje de impuesto (0 si no aplica)
+     * @param int|null $employeeId
+     * @param int|null $cashRegisterId Caja abierta a la que pertenece la venta
      * @throws Exception Si algún producto no existe, no hay stock o el pago no cubre el total
      * @return int ID de la venta creada
      */
-    public function createSale(array $items, array $payments, $taxRate = 0.0, $employeeId = null)
+    public function createSale(array $items, array $payments, $taxRate = 0.0, $employeeId = null, $cashRegisterId = null)
     {
         if (empty($items)) {
             throw new Exception('El carrito está vacío.');
@@ -164,8 +166,10 @@ class Sale
                 "INSERT INTO " . $this->table . "
                     (cash_register_id, client_id, employee_id, promotion_id,
                      subtotal, total_discount, tax, total, payment_method, state)
-                 VALUES (NULL, NULL, :employee_id, NULL, :subtotal, :total_discount, :tax, :total, :payment_method, 'completada');"
+                 VALUES (:cash_register_id, NULL, :employee_id, NULL, :subtotal, :total_discount, :tax, :total, :payment_method, 'completada');"
             );
+            $cashRegisterId = $cashRegisterId !== null && (int) $cashRegisterId > 0 ? (int) $cashRegisterId : null;
+            $stmt->bindValue(':cash_register_id', $cashRegisterId, $cashRegisterId === null ? PDO::PARAM_NULL : PDO::PARAM_INT);
             $employeeId = $employeeId !== null && (int) $employeeId > 0 ? (int) $employeeId : null;
             $stmt->bindValue(':employee_id', $employeeId, $employeeId === null ? PDO::PARAM_NULL : PDO::PARAM_INT);
             $stmt->bindParam(':subtotal', $subtotal);

@@ -22,6 +22,8 @@
 $flashToasts = array_filter([
     ['type' => 'success', 'message' => flash('success')],
     ['type' => 'error', 'message' => flash('error')],
+    ['type' => 'info', 'message' => flash('info')],
+    ['type' => 'warning', 'message' => flash('warning')],
 ], function ($flash) {
     return !empty($flash['message']);
 });

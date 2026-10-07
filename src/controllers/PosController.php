@@ -1,16 +1,37 @@
 <?php
 
 require_once __DIR__ . '/../models/Sale.php';
+require_once __DIR__ . '/../models/CashRegister.php';
+require_once __DIR__ . '/../models/AuditLog.php';
 
 class PosController
 {
     private $db;
     private $saleModel;
+    private $auditModel;
+    private $cashModel;
 
     public function __construct($db)
     {
         $this->db = $db;
         $this->saleModel = new Sale($db);
+        $this->auditModel = new AuditLog($db);
+        $this->cashModel = new CashRegister($db);
+    }
+
+    /**
+     * Caja abierta del usuario en sesion. Solo quien tiene acceso al modulo
+     * Caja opera bajo una caja: los demas (meseros, por ejemplo) venden sin ella.
+     */
+    private function cajaAbierta()
+    {
+        if (!puede('cash_register', 'view')) {
+            return null;
+        }
+
+        $employeeId = (int) ($_SESSION['user']['id'] ?? 0);
+
+        return $employeeId > 0 ? $this->cashModel->getOpenByEmployee($employeeId) : null;
     }
 
     public function index()
@@ -26,6 +47,9 @@ class PosController
                 $categories[] = ['id' => $p['category_id'], 'name' => $p['category_name']];
             }
         }
+
+        $requiereCaja = puede('cash_register', 'view');
+        $caja = $requiereCaja ? $this->cajaAbierta() : null;
 
         $title = 'Punto de Venta';
         $currentModule = 'pos';
@@ -81,10 +105,22 @@ class PosController
             exit;
         }
 
+        // Quien opera bajo una caja no puede vender sin caja abierta.
+        $caja = $this->cajaAbierta();
+        if (puede('cash_register', 'view') && !$caja) {
+            flash('error', 'Tenés que abrir tu caja antes de registrar una venta.');
+            header('Location: ' . url('cash_register'));
+            exit;
+        }
+
         try {
             $taxRate = (float) setting('tax_rate', 0);
             $employeeId = $_SESSION['user']['id'] ?? null;
-            $saleId = $this->saleModel->createSale($items, $payments, $taxRate, $employeeId);
+            $cashRegisterId = $caja ? (int) $caja['id'] : null;
+            $saleId = $this->saleModel->createSale($items, $payments, $taxRate, $employeeId, $cashRegisterId);
+
+            $saleData = $this->saleModel->getTicketData($saleId);
+            $this->auditModel->write('sale', 'ventas', $saleId, null, $saleData ?: null, 'Venta realizada.');
         } catch (Exception $e) {
             flash('error', $e->getMessage());
             header('Location: ' . url('pos'));
@@ -112,7 +148,9 @@ class PosController
         $html = $this->renderTicketHtml($sale, $business);
 
         // Volcado opcional del HTML para inspeccionar el ticket sin abrir el PDF.
-        if (getenv('TICKET_DEBUG_HTML')) {
+        // phpdotenv puebla $_ENV (no el entorno del proceso), por eso no usamos getenv().
+        $ticketDebug = ($_ENV['TICKET_DEBUG_HTML'] ?? null) ?: getenv('TICKET_DEBUG_HTML');
+        if ($ticketDebug) {
             file_put_contents('/tmp/ticket_debug.html', $html);
         }
 
@@ -369,7 +407,7 @@ class PosController
         $name = trim((string) ($sale['employee_name'] ?? '') . ' ' . (string) ($sale['employee_last_name'] ?? ''));
 
         if ($name === '') {
-            $name = (string) ($_SESSION['user']['username'] ?? '');
+            $name = trim((string) ($_SESSION['user']['name'] ?? '') . ' ' . (string) ($_SESSION['user']['last_name'] ?? ''));
         }
 
         $prefix = trim((string) ($business['cashier_prefix'] ?? ''));

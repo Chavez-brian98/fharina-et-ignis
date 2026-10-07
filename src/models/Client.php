@@ -12,7 +12,8 @@ class Client
 
     public function getAll()
     {
-        $query = "SELECT id, name, last_name, phone, email, address, birth_date, registration_date, status
+        $query = "SELECT id, name, last_name, id_document, client_type, company_name, phone, email, address,
+                         profile_photo, birth_date, registration_date, status
                     FROM " . $this->table . "
                     ORDER BY last_name ASC, name ASC;";
 
@@ -24,7 +25,8 @@ class Client
 
     public function getById($id)
     {
-        $query = "SELECT id, name, last_name, phone, email, address, birth_date, registration_date, status
+        $query = "SELECT id, name, last_name, id_document, client_type, company_name, phone, email, address,
+                         profile_photo, birth_date, registration_date, status
                     FROM " . $this->table . "
                     WHERE id = :id
                     LIMIT 1;";
@@ -36,10 +38,56 @@ class Client
         return $stmt->fetch();
     }
 
+    /** Búsqueda por email con la password_hash incluida (login del portal). */
+    public function findByEmail($email)
+    {
+        $query = "SELECT id, name, last_name, phone, email, password_hash, address, status
+                    FROM " . $this->table . "
+                    WHERE email = :email
+                    LIMIT 1;";
+
+        $stmt = $this->conn->prepare($query);
+        $stmt->bindParam(':email', $email);
+        $stmt->execute();
+
+        return $stmt->fetch();
+    }
+
+    /**
+     * Alta desde el portal web (registro de clientes). Sin DUI, sin empresa:
+     * solo los datos que pide el formulario del sitio.
+     */
+    public function createWeb($name, $lastName, $phone, $email, $passwordHash, $address)
+    {
+        $query = "INSERT INTO " . $this->table . "
+                    (name, last_name, phone, email, password_hash, address, client_type)
+                    VALUES (:name, :last_name, :phone, :email, :password_hash, :address, 'persona');";
+
+        $stmt = $this->conn->prepare($query);
+        $stmt->bindParam(':name', $name);
+        $stmt->bindParam(':last_name', $lastName);
+        $stmt->bindParam(':phone', $phone);
+        $stmt->bindParam(':email', $email);
+        $stmt->bindParam(':password_hash', $passwordHash);
+        $stmt->bindParam(':address', $address);
+
+        return $stmt->execute();
+    }
+
     public function emailExists($email, $excludeId = null)
     {
-        $query = "SELECT COUNT(*) AS total FROM " . $this->table . " WHERE email = :email";
-        $params = [':email' => $email];
+        return $this->fieldExists('email', $email, $excludeId);
+    }
+
+    public function documentExists($idDocument, $excludeId = null)
+    {
+        return $this->fieldExists('id_document', $idDocument, $excludeId);
+    }
+
+    private function fieldExists($field, $value, $excludeId = null)
+    {
+        $query = "SELECT COUNT(*) AS total FROM " . $this->table . " WHERE " . $field . " = :value";
+        $params = [':value' => $value];
 
         if ($excludeId !== null) {
             $query .= " AND id != :id";
@@ -54,30 +102,38 @@ class Client
         return (int) $row['total'] > 0;
     }
 
-    public function create($name, $last_name, $phone, $email, $address, $birth_date)
+    public function create($name, $last_name, $idDocument, $clientType, $companyName, $phone, $email, $address, $birth_date, $profilePhoto = null)
     {
-        $query = "INSERT INTO " . $this->table . "(name, last_name, phone, email, address, birth_date)
-                    VALUES (:name, :last_name, :phone, :email, :address, :birth_date);";
+        $query = "INSERT INTO " . $this->table . "(name, last_name, id_document, client_type, company_name, phone, email, address, profile_photo, birth_date)
+                    VALUES (:name, :last_name, :id_document, :client_type, :company_name, :phone, :email, :address, :profile_photo, :birth_date);";
 
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':name', $name);
         $stmt->bindParam(':last_name', $last_name);
+        $stmt->bindParam(':id_document', $idDocument);
+        $stmt->bindParam(':client_type', $clientType);
+        $stmt->bindParam(':company_name', $companyName);
         $stmt->bindParam(':phone', $phone);
         $stmt->bindParam(':email', $email);
         $stmt->bindParam(':address', $address);
+        $stmt->bindParam(':profile_photo', $profilePhoto);
         $stmt->bindParam(':birth_date', $birth_date);
 
         return $stmt->execute();
     }
 
-    public function update($id, $name, $last_name, $phone, $email, $address, $birth_date, $status)
+    public function update($id, $name, $last_name, $idDocument, $clientType, $companyName, $phone, $email, $address, $birth_date, $status, $profilePhoto = null)
     {
         $query = "UPDATE " . $this->table . "
                     SET name = :name,
                         last_name = :last_name,
+                        id_document = :id_document,
+                        client_type = :client_type,
+                        company_name = :company_name,
                         phone = :phone,
                         email = :email,
                         address = :address,
+                        profile_photo = :profile_photo,
                         birth_date = :birth_date,
                         status = :status
                     WHERE id = :id;";
@@ -85,9 +141,13 @@ class Client
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':name', $name);
         $stmt->bindParam(':last_name', $last_name);
+        $stmt->bindParam(':id_document', $idDocument);
+        $stmt->bindParam(':client_type', $clientType);
+        $stmt->bindParam(':company_name', $companyName);
         $stmt->bindParam(':phone', $phone);
         $stmt->bindParam(':email', $email);
         $stmt->bindParam(':address', $address);
+        $stmt->bindParam(':profile_photo', $profilePhoto);
         $stmt->bindParam(':birth_date', $birth_date);
         $stmt->bindParam(':status', $status);
         $stmt->bindParam(':id', $id, PDO::PARAM_INT);

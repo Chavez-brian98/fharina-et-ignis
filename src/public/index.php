@@ -23,9 +23,14 @@ $dotenv->load();
 require_once __DIR__ . '/../config/helpers.php';
 
 $db = (new Database())->getConnection();
+$GLOBALS['__db'] = $db;
 
 // Configuración global de la app (tabla settings), disponible vía setting().
 $GLOBALS['__settings'] = (new Setting($db))->getAll();
+
+// Los tres relojes (PHP, MySQL y el de las columnas CURRENT_TIMESTAMP) tienen
+// que usar la zona del negocio, no la del contenedor (que es UTC).
+aplicarZonaHoraria($db);
 
 // --- Enrutado (definición en routes/web.php, resolución en core/Router.php) ---
 $router = new Router(require __DIR__ . '/../routes/web.php');
@@ -40,6 +45,19 @@ if (!$route['public'] && empty($_SESSION['user'])) {
 if ($route['controller'] === null) {
     http_response_code(404);
     echo '<h1>404 - Página no encontrada</h1>';
+    exit;
+}
+
+// Control de permisos por módulo y acción (roles + excepciones por empleado).
+// Las rutas públicas (sitio web, kiosco, /rastrear/<token>) no pasan por el gate.
+$routeModule = Permiso::moduloDeControlador($route['controller']);
+
+if ($route['controller'] === KioskController::class) {
+    // Quiosco público: no pasa por el gate de permisos.
+} elseif (!$route['public'] && $routeModule !== null && !puede($routeModule, Permiso::accionDeRuta($route['action']))) {
+    http_response_code(403);
+    $GLOBALS['__route_module'] = $routeModule;
+    require __DIR__ . '/../views/errors/403.php';
     exit;
 }
 

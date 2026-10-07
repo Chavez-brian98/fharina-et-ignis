@@ -1,5 +1,18 @@
 <?php require_once __DIR__ . '/../layouts/sidebar.php'; ?>
 
+<?php
+$accionesPermiso = Permiso::acciones();
+$esAdmin = Permiso::esAdminActual();
+
+// Lo que otorga cada rol (para repintar la matriz al cambiar el rol en el modal).
+$permisosPorRol = [];
+$rolesAdmin = [];
+foreach ($roles as $rol) {
+    $permisosPorRol[(string) $rol['id']] = Permiso::permisosBaseDeRol($rol['id'], $rol['status'] === 'active');
+    $rolesAdmin[(string) $rol['id']] = (int) $rol['is_admin'] === 1 ? 1 : 0;
+}
+?>
+
 <div class="flex items-center justify-between mb-6">
     <h1 class="text-2xl font-bold text-gray-900">Empleados</h1>
     <a href="<?= url('employees/create') ?>" class="inline-flex items-center gap-2 rounded-xl bg-orange-500 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-orange-500/25 hover:bg-orange-600 hover:shadow-orange-500/40 hover:-translate-y-px transition-all">
@@ -13,7 +26,7 @@
         <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
         <input type="text" id="searchInput"
                class="w-full rounded-xl border border-gray-200 bg-white pl-10 pr-4 py-2.5 text-sm shadow-sm shadow-gray-200/60 outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100 transition"
-               placeholder="Buscar por nombre, DUI, cargo, correo o usuario...">
+               placeholder="Buscar por nombre, DUI, correo o rol...">
     </div>
     <div>
         <select id="filterStatus" class="search-filter w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm shadow-sm shadow-gray-200/60 outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100">
@@ -32,7 +45,7 @@
                 <tr class="border-b border-gray-100 text-left text-xs uppercase tracking-wider text-gray-400">
                     <th class="px-5 py-3 font-semibold">Empleado</th>
                     <th class="px-5 py-3 font-semibold">DUI</th>
-                    <th class="px-5 py-3 font-semibold">Cargo</th>
+                    <th class="px-5 py-3 font-semibold">Rol</th>
                     <th class="px-5 py-3 font-semibold">Teléfono</th>
                     <th class="px-5 py-3 font-semibold">Salario base</th>
                     <th class="px-5 py-3 font-semibold">Estado</th>
@@ -42,14 +55,15 @@
             <tbody id="crudTableBody">
                 <?php foreach ($employees as $item):
                     $fullName = $item['name'] . ($item['last_name'] ? ' ' . $item['last_name'] : '');
+                    $summary = json_encode([
+                        'Nombre' => $fullName,
+                        'Rol' => Employee::roleLabel($item['role']),
+                        'Edad' => $item['birth_date'] ? (edadDesde($item['birth_date']) . ' años') : '—',
+                    ], JSON_UNESCAPED_UNICODE);
                     $detail = json_encode([
                         'ID' => $item['id'],
-                        'Nombre' => $fullName,
                         'DUI' => $item['id_document'],
-                        'Cargo' => $item['position'],
-                        'Usuario' => $item['username'] ?: '—',
                         'Correo' => $item['email'] ?: '—',
-                        'Rol' => $item['role_name'] ? ucfirst($item['role_name']) : 'Sin cuenta de acceso',
                         'Teléfono' => $item['phone'] ?: '—',
                         'Dirección' => $item['address'] ?: '—',
                         'Fecha de nacimiento' => $item['birth_date'] ? date('d/m/Y', strtotime($item['birth_date'])) : '—',
@@ -57,23 +71,79 @@
                         'Salario base' => '$' . number_format($item['base_salary'], 2),
                         'Estado' => $item['status'] === 'active' ? 'Activo' : 'Inactivo',
                     ], JSON_UNESCAPED_UNICODE);
+
+                    // Payload del modal de permisos: permisos del rol + excepciones del empleado.
+                    $overrides = Permiso::permisosDeEmpleado($item['id']);
+
+                    $permisosPayload = json_encode([
+                        'url' => url('employees/updatePermisos/' . $item['id']),
+                        'titulo' => 'Permisos de ' . $fullName,
+                        'admin' => (int) ($item['role_is_admin'] ?? 0) === 1,
+                        'rolId' => (int) $item['role_id'],
+                        'overrides' => (object) $overrides,
+                        'permsPorRol' => $permisosPorRol,
+                        'rolesAdmin' => $rolesAdmin,
+                    ], JSON_UNESCAPED_UNICODE);
+
+                    // QR del empleado. El token llega como esta en la base: si el
+                    // empleado nunca Generate su QR, el modal ofrece emitirlo en
+                    // vez de generar uno por fila en cada visita.
+                    $qrPayload = json_encode([
+                        'nombre' => $fullName,
+                        'token' => $item['qr_token'] ?: null,
+                        'regenerar' => url('employees/qrRegenerate/' . $item['id']),
+                    ], JSON_UNESCAPED_UNICODE);
+
+                    // Horario de la semana actual, ya resuelto por el controlador.
+                    $turnos = [];
+                    foreach ($turnosSemana[(int) $item['id']] ?? [] as $t) {
+                        $inicio = strtotime($t['work_date'] . ' ' . $t['start_time']);
+                        $fin = strtotime($t['work_date'] . ' ' . $t['end_time']);
+                        $turnos[] = [
+                            'fecha' => date('d/m', strtotime($t['work_date'])),
+                            'dia' => (string) date('w', strtotime($t['work_date'])),
+                            'hora' => date('H:i', $inicio) . ' - ' . date('H:i', $fin),
+                            'tipo' => Shift::tipoTexto($t['shift_type']),
+                            'horas' => round(($fin - $inicio) / 3600, 2),
+                        ];
+                    }
+
+                    $calPayload = json_encode([
+                        'nombre' => $fullName,
+                        'turnos' => $turnos,
+                        'roster' => url('schedules'),
+                    ], JSON_UNESCAPED_UNICODE);
                 ?>
                 <tr class="border-b border-gray-50 last:border-0 hover:bg-orange-50/40 transition-colors"
                     data-status="<?= esc($item['status']) ?>"
-                    data-search="<?= esc(strtolower($fullName . ' ' . $item['id_document'] . ' ' . $item['position'] . ' ' . ($item['phone'] ?? '') . ' ' . ($item['username'] ?? '') . ' ' . ($item['email'] ?? '') . ' ' . ($item['role_name'] ?? ''))) ?>">
+                    data-search="<?= esc(strtolower($fullName . ' ' . $item['id_document'] . ' ' . ($item['phone'] ?? '') . ' ' . ($item['email'] ?? '') . ' ' . (Employee::roleLabel($item['role']) ?? ''))) ?>">
                     <td class="px-5 py-3.5">
                         <div class="flex items-center gap-3">
-                            <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-orange-100 to-orange-50 text-orange-500 flex items-center justify-center shrink-0 ring-1 ring-orange-100 shadow-sm">
-                                <i class="fa-solid fa-user-tie text-sm"></i>
+                            <?php if (!empty($item['profile_photo'])): ?>
+                                <img src="<?= esc($item['profile_photo']) ?>" alt="<?= esc($fullName) ?>"
+                                     class="w-9 h-9 rounded-lg object-cover shrink-0 ring-1 ring-orange-100 shadow-sm">
+                            <?php else: ?>
+                                <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-orange-100 to-orange-50 text-orange-500 flex items-center justify-center shrink-0 ring-1 ring-orange-100 shadow-sm">
+                                    <i class="fa-solid fa-user-tie text-sm"></i>
+                                </div>
+                            <?php endif; ?>
+                            <div class="min-w-0">
+                                <div class="flex items-center gap-1.5">
+                                    <span class="font-semibold text-gray-900"><?= esc($fullName) ?></span>
+                                    <?php if (!empty($item['face_enrolled'])): ?>
+                                        <i class="fa-solid fa-face-smile text-green-500 text-xs"
+                                           title="Biometría enrolada: puede marcar con su rostro en el quiosco"></i>
+                                    <?php endif; ?>
+                                </div>
+                                <span class="text-[11px] text-gray-400"><?= empty($item['qr_token']) ? 'sin QR emitido' : 'QR activo' ?></span>
                             </div>
-                            <span class="font-semibold text-gray-900"><?= esc($fullName) ?></span>
                         </div>
                     </td>
                     <td class="px-5 py-3.5">
                         <span class="font-mono text-xs font-semibold text-gray-700 bg-gray-100 rounded-md px-2 py-1"><?= esc($item['id_document']) ?></span>
                     </td>
                     <td class="px-5 py-3.5">
-                        <span class="inline-flex items-center rounded-full bg-orange-50 px-2.5 py-1 text-xs font-semibold text-orange-600"><?= esc($item['position']) ?></span>
+                        <span class="inline-flex items-center rounded-full bg-orange-50 px-2.5 py-1 text-xs font-semibold text-orange-600"><?= esc(Employee::roleLabel($item['role'])) ?></span>
                     </td>
                     <td class="px-5 py-3.5 text-gray-600"><?= esc($item['phone']) ?: '—' ?></td>
                     <td class="px-5 py-3.5 font-semibold text-gray-900">$<?= number_format($item['base_salary'], 2) ?></td>
@@ -94,9 +164,23 @@
                     </td>
                     <td class="px-5 py-3.5">
                         <div class="flex items-center justify-end gap-1.5">
+                            <button type="button" class="btn-action btn-emp-qr" title="Ver QR de asistencia"
+                                    data-qr="<?= esc($qrPayload) ?>">
+                                <i class="fa-solid fa-qrcode text-orange-500"></i>
+                            </button>
+                            <button type="button" class="btn-action btn-emp-cal" title="Ver horario de esta semana"
+                                    data-cal="<?= esc($calPayload) ?>">
+                                <i class="fa-solid fa-calendar-days text-orange-500"></i>
+                            </button>
+                            <button type="button" class="btn-action btn-perms" title="Administrar permisos"
+                                    data-perms="<?= esc($permisosPayload) ?>">
+                                <i class="fa-solid fa-shield-halved text-orange-500"></i>
+                            </button>
                             <button type="button" class="btn-action btn-detail" title="Ver detalle"
                                     data-title="<?= esc($fullName) ?>"
+                                    data-image="<?= esc($item['profile_photo'] ?? '') ?>"
                                     data-icon="fa-user-tie"
+                                    data-summary='<?= esc($summary) ?>'
                                     data-detail='<?= esc($detail) ?>'>
                                 <i class="fa-regular fa-eye"></i>
                             </button>
@@ -142,5 +226,11 @@
         <div class="px-6 py-5 bg-white" id="detailModalBody"></div>
     </div>
 </div>
+
+<!-- Modal de permisos por empleado -->
+<?php $matrixConfig = ['modo' => 'empleado', 'conBloqueo' => true, 'roles' => $roles]; require __DIR__ . '/../partials/matrix_permisos.php'; ?>
+
+<!-- Modales de QR y horario semanal -->
+<?php require __DIR__ . '/../partials/empleado_modales.php'; ?>
 
 <?php require_once __DIR__ . '/../layouts/footer.php'; ?>

@@ -78,6 +78,14 @@
             <label for="image_file" class="form-label">Imagen del producto</label>
             <input type="file" id="image_file" name="image_file" accept="image/*" class="form-input">
             <p class="text-xs text-gray-400 mt-1.5">JPG, PNG, WEBP o GIF · máximo 2 MB · se sube al sistema y se muestra en el POS.</p>
+            <?php $cameraField = 'image_file'; require __DIR__ . '/../partials/camera_capture.php'; ?>
+        </div>
+
+        <div class="md:col-span-2">
+            <label for="gallery_images" class="form-label">Galería de fotos</label>
+            <input type="file" id="gallery_images" name="gallery_images[]" accept="image/*" multiple data-gallery class="form-input">
+            <p class="text-xs text-gray-400 mt-1.5">Opcional. Añade varias fotos que se mostrarán en la página pública del producto. Puedes seleccionarlas a la vez o tomarlas con la cámara.</p>
+            <?php $cameraField = 'gallery_images'; require __DIR__ . '/../partials/camera_capture.php'; ?>
         </div>
 
         <div class="md:col-span-2">

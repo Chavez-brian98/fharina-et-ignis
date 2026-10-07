@@ -1,14 +1,17 @@
 <?php
 
 require_once __DIR__ . '/../models/User.php';
+require_once __DIR__ . '/../models/AuditLog.php';
 
 class AuthController
 {
     private $userModel;
+    private $auditModel;
 
     public function __construct($db)
     {
         $this->userModel = new User($db);
+        $this->auditModel = new AuditLog($db);
     }
 
     public function login()
@@ -31,6 +34,7 @@ class AuthController
             $user = $this->userModel->findByEmail($email);
 
             if (!$user || $user['status'] !== 'active' || !password_verify($password, $user['password_hash'])) {
+                $this->auditModel->write('login_failed', null, null, null, null, 'Intento de inicio de sesión fallido: ' . $email);
                 flash('error', 'Correo o contraseña incorrectos.');
                 header('Location: ' . url('auth/login'));
                 exit;
@@ -39,13 +43,17 @@ class AuthController
             session_regenerate_id(true);
             $_SESSION['user'] = [
                 'id' => (int) $user['id'],
-                'username' => $user['username'],
+                'name' => $user['name'],
+                'last_name' => $user['last_name'],
                 'email' => $user['email'],
+                'profile_photo' => $user['profile_photo'],
+                'role' => $user['role'],
                 'role_id' => (int) $user['role_id'],
-                'role' => $user['role_name'],
             ];
 
-            flash('success', 'Bienvenido de nuevo, ' . $user['username'] . '.');
+            $this->auditModel->write('login', null, (int) $user['id'], null, null, 'Inicio de sesión.', (int) $user['id']);
+
+            flash('success', 'Bienvenido de nuevo, ' . $user['name'] . '.');
             header('Location: ' . url('dashboard'));
             exit;
         }
@@ -61,8 +69,10 @@ class AuthController
 
     public function logout()
     {
+        $userId = isset($_SESSION['user']['id']) ? (int) $_SESSION['user']['id'] : null;
         session_unset();
         session_destroy();
+        $this->auditModel->write('logout', null, $userId, null, null, 'Cierre de sesión.', $userId);
         header('Location: ' . url('auth/login'));
         exit;
     }

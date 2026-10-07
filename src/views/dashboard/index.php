@@ -104,9 +104,17 @@
             </thead>
             <tbody>
                 <?php if (count($lowStockProducts) > 0): ?>
+                    <?php $stockColors = ['bg-rose-100 text-rose-600', 'bg-sky-100 text-sky-600', 'bg-amber-100 text-amber-600', 'bg-emerald-100 text-emerald-600', 'bg-violet-100 text-violet-600', 'bg-teal-100 text-teal-600']; ?>
                     <?php foreach ($lowStockProducts as $item): ?>
                         <tr class="border-b border-gray-50 last:border-0 hover:bg-orange-50/40 transition-colors">
-                            <td class="px-5 py-3.5 font-semibold text-gray-900"><?= esc($item['name']) ?></td>
+                            <td class="px-5 py-3.5">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-8 h-8 rounded-lg <?= $stockColors[$item['id'] % count($stockColors)] ?> flex items-center justify-center shrink-0">
+                                        <i class="fa-solid fa-cube text-xs"></i>
+                                    </div>
+                                    <span class="font-semibold text-gray-900"><?= esc($item['name']) ?></span>
+                                </div>
+                            </td>
                             <td class="px-5 py-3.5 text-gray-500"><?= esc($item['category_name']) ?></td>
                             <td class="px-5 py-3.5">
                                 <span class="inline-flex items-center gap-1.5 rounded-full bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-600">
@@ -131,7 +139,31 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function () {
-    var palette = ['#f97316', '#fb923c', '#fdba74', '#ea580c', '#c2410c', '#fed7aa'];
+    // Colores aleatorios y vibrantes (no dependen del tema; nunca quedan grises)
+    function hslToHex(h, s, l) {
+        s /= 100; l /= 100;
+        var c = (1 - Math.abs(2 * l - 1)) * s;
+        var x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+        var m = l - c / 2;
+        var r = 0, g = 0, b = 0;
+        if (h < 60) { r = c; g = x; }
+        else if (h < 120) { r = x; g = c; }
+        else if (h < 180) { g = c; b = x; }
+        else if (h < 240) { g = x; b = c; }
+        else if (h < 300) { r = x; b = c; }
+        else { r = c; b = x; }
+        function cv(v) { return Math.round((v + m) * 255).toString(16).padStart(2, '0'); }
+        return '#' + cv(r) + cv(g) + cv(b);
+    }
+    function randomPalette(count) {
+        var colors = [];
+        var hue = Math.floor(Math.random() * 360);
+        for (var i = 0; i < count; i++) {
+            hue = (hue + 137.508) % 360;
+            colors.push(hslToHex(hue, 72, 54));
+        }
+        return colors;
+    }
 
     // Evolución de ventas (área)
     var salesEl = document.getElementById('chartSales');
@@ -156,7 +188,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     formatter: function (v) { return '$' + v.toFixed(0); }
                 }
             },
-            colors: ['#f97316'],
+            colors: [randomPalette(1)[0]],
             stroke: { curve: 'smooth', width: 3 },
             fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.35, opacityTo: 0.05 } },
             dataLabels: { enabled: false },
@@ -168,11 +200,13 @@ document.addEventListener('DOMContentLoaded', function () {
     // Ventas por categoría (donut)
     var catEl = document.getElementById('chartCategory');
     if (catEl && typeof ApexCharts !== 'undefined') {
+        var catSeries = <?= json_encode(array_map(fn($r) => (float) $r['total'], $salesByCategory)) ?>;
+        var catLabels = <?= json_encode(array_map(fn($r) => $r['name'], $salesByCategory)) ?>;
         new ApexCharts(catEl, {
             chart: { type: 'donut', height: 300, fontFamily: 'inherit' },
-            series: <?= json_encode(array_map(fn($r) => (float) $r['total'], $salesByCategory)) ?>,
-            labels: <?= json_encode(array_map(fn($r) => $r['name'], $salesByCategory)) ?>,
-            colors: palette,
+            series: catSeries,
+            labels: catLabels,
+            colors: randomPalette(catLabels.length),
             legend: { position: 'bottom', labels: { colors: '#6b7280' }, fontSize: '13px' },
             stroke: { colors: ['#ffffff'], width: 2 },
             plotOptions: { pie: { donut: { size: '70%' } } },
@@ -190,13 +224,13 @@ document.addEventListener('DOMContentLoaded', function () {
             plotOptions: { bar: { horizontal: true, borderRadius: 4, barHeight: '55%' } },
             xaxis: { labels: { style: { colors: '#9ca3af' } } },
             yaxis: { labels: { style: { colors: '#9ca3af' } } },
-            colors: ['#fb923c'],
+            colors: [randomPalette(1)[0]],
             grid: { borderColor: '#f3f4f6' },
             dataLabels: { enabled: false }
         }).render();
     }
 
-    // Pedidos por estado (donut)
+    // Pedidos por estado (pie)
     var ordersEl = document.getElementById('chartOrders');
     if (ordersEl && typeof ApexCharts !== 'undefined') {
         var ordersLabels = <?= json_encode(array_map(fn($r) => $stateLabels[$r['state']] ?? $r['state'], $ordersByState)) ?>;
@@ -205,7 +239,7 @@ document.addEventListener('DOMContentLoaded', function () {
             chart: { type: 'pie', height: 300, fontFamily: 'inherit' },
             series: ordersSeries,
             labels: ordersLabels,
-            colors: palette,
+            colors: randomPalette(ordersLabels.length),
             legend: { position: 'bottom', labels: { colors: '#6b7280' }, fontSize: '13px' },
             stroke: { colors: ['#ffffff'], width: 2 },
             dataLabels: { enabled: false }
