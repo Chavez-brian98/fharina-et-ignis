@@ -3,18 +3,26 @@
 require_once __DIR__ . '/../models/Product.php';
 require_once __DIR__ . '/../models/ContactMessage.php';
 require_once __DIR__ . '/../models/Sale.php';
+require_once __DIR__ . '/../models/Client.php';
+require_once __DIR__ . '/../models/Delivery.php';
+require_once __DIR__ . '/../models/GoogleMaps.php';
+require_once __DIR__ . '/../models/PayPal.php';
 
 class SiteController
 {
     private $db;
     private $saleModel;
     private $productModel;
+    private $clientModel;
+    private $deliveryModel;
 
     public function __construct($db)
     {
         $this->db = $db;
         $this->saleModel = new Sale($db);
         $this->productModel = new Product($db);
+        $this->clientModel = new Client($db);
+        $this->deliveryModel = new Delivery($db);
     }
 
     public function index()
@@ -59,6 +67,27 @@ class SiteController
             }
 
             $saved = (new ContactMessage($this->db))->create($name, $email, $phone, $message);
+
+            // Envía notificaciones por correo (sin bloquear el flujo).
+            $mailer = new Mailer();
+            $htmlVisitante = '<h2 style="margin:0 0 12px 0;font-size:18px;color:#111827;">Gracias por escribirnos, ' . htmlspecialchars($name) . '</h2>'
+                . '<p style="margin:0 0 8px 0;color:#374151;">Hemos recibido tu mensaje desde la página de contacto de ' . htmlspecialchars(setting('business_name', 'Panadería orellana')) . '.</p>'
+                . '<p style="margin:0 0 8px 0;color:#374151;"><strong>Teléfono:</strong> ' . htmlspecialchars($phone ?: 'No especificado') . '<br>'
+                . '<strong>Correo:</strong> ' . htmlspecialchars($email) . '</p>'
+                . '<p style="margin:16px 0 0 0;color:#111827;font-weight:600;">Tu mensaje</p>'
+                . '<div style="margin:8px 0 0 0;padding:12px;border:1px solid #e5e7eb;border-radius:8px;background:#fafafa;white-space:pre-wrap;color:#374151;">' . htmlspecialchars($message) . '</div>'
+                . '<p style="margin:16px 0 0 0;color:#6b7280;font-size:12px;">Este es un mensaje automático. No respondas a este correo.</p>';
+            $mailer->send($email, 'Hemos recibido tu mensaje', $htmlVisitante, $mailer->businessMail() ?: $email);
+
+            $toEmpresa = $mailer->businessMail() ?: $email;
+            $htmlEmpresa = '<h2 style="margin:0 0 12px 0;font-size:18px;color:#111827;">Nuevo mensaje desde el sitio web</h2>'
+                . '<p style="margin:0 0 8px 0;color:#374151;"><strong>Nombre:</strong> ' . htmlspecialchars($name) . '<br>'
+                . '<strong>Correo:</strong> ' . htmlspecialchars($email) . '<br>'
+                . '<strong>Teléfono:</strong> ' . htmlspecialchars($phone ?: 'No especificado') . '</p>'
+                . '<p style="margin:16px 0 0 0;color:#111827;font-weight:600;">Mensaje</p>'
+                . '<div style="margin:8px 0 0 0;padding:12px;border:1px solid #e5e7eb;border-radius:8px;background:#fafafa;white-space:pre-wrap;color:#374151;">' . htmlspecialchars($message) . '</div>'
+                . '<p style="margin:16px 0 0 0;color:#6b7280;font-size:12px;">Formulario: /contacto</p>';
+            $mailer->send($toEmpresa, 'Contacto web: ' . substr($name, 0, 60), $htmlEmpresa, $email);
 
             flash($saved ? 'success' : 'error', $saved
                 ? '¡Gracias ' . $name . '! Hemos recibido tu mensaje y te contactaremos muy pronto.'
@@ -155,8 +184,31 @@ class SiteController
     public function login()
     {
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            flash('success', 'El inicio de sesión para clientes estará disponible próximamente.');
-            header('Location: ' . url('ingresar'));
+            $email = trim($_POST['email'] ?? '');
+            $password = (string) ($_POST['password'] ?? '');
+
+            $cliente = $this->clientModel->findByEmail($email);
+            if (!$cliente || $cliente['status'] !== 'active' || !password_verify($password, $cliente['password_hash'] ?? '')) {
+                flash('error', 'Correo o contraseña incorrectos.');
+                header('Location: ' . url('ingresar'));
+                exit;
+            }
+
+            $_SESSION['cliente'] = [
+                'id' => (int) $cliente['id'],
+                'name' => trim($cliente['name'] . ' ' . $cliente['last_name']),
+                'email' => $cliente['email'],
+            ];
+
+            $next = $_GET['next'] ?? 'cuenta';
+            $next = in_array($next, ['finalizar', 'cuenta'], true) ? $next : 'cuenta';
+            flash('success', '¡Hola ' . $_SESSION['cliente']['name'] . '! Sesión iniciada.');
+            header('Location: ' . url($next));
+            exit;
+        }
+
+        if (!empty($_SESSION['cliente'])) {
+            header('Location: ' . url('cuenta'));
             exit;
         }
 
@@ -169,8 +221,66 @@ class SiteController
     public function register()
     {
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            flash('success', 'El registro de clientes estará disponible próximamente.');
-            header('Location: ' . url('registro'));
+            $nameFull = trim($_POST['name'] ?? '');
+            $email = trim($_POST['email'] ?? '');
+            $phone = trim($_POST['phone'] ?? '');
+            $address = trim($_POST['address'] ?? '');
+            $password = (string) ($_POST['password'] ?? '');
+            $confirm = (string) ($_POST['password_confirm'] ?? '');
+
+            if ($nameFull === '' || $email === '') {
+                flash('error', 'Completa tu nombre y tu correo electrónico.');
+                header('Location: ' . url('registro'));
+                exit;
+            }
+            if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                flash('error', 'El correo electrónico no es válido.');
+                header('Location: ' . url('registro'));
+                exit;
+            }
+            if ($this->clientModel->emailExists($email)) {
+                flash('error', 'Ya existe una cuenta con ese correo.');
+                header('Location: ' . url('registro'));
+                exit;
+            }
+            if (mb_strlen($password) < 6) {
+                flash('error', 'La contraseña debe tener al menos 6 caracteres.');
+                header('Location: ' . url('registro'));
+                exit;
+            }
+            if ($password !== $confirm) {
+                flash('error', 'Las contraseñas no coinciden.');
+                header('Location: ' . url('registro'));
+                exit;
+            }
+
+            // El formulario pide un solo "nombre completo"; se reparte en
+            // name (primera palabra) y last_name (el resto).
+            $parts = preg_split('/\s+/', $nameFull, 2);
+            $name = $parts[0];
+            $lastName = isset($parts[1]) ? $parts[1] : '';
+
+            $created = $this->clientModel->createWeb($name, $lastName, $phone, $email, password_hash($password, PASSWORD_DEFAULT), $address);
+            if (!$created) {
+                flash('error', 'No se pudo crear la cuenta. Inténtalo de nuevo.');
+                header('Location: ' . url('registro'));
+                exit;
+            }
+
+            $cliente = $this->clientModel->findByEmail($email);
+            $_SESSION['cliente'] = [
+                'id' => (int) $cliente['id'],
+                'name' => $nameFull,
+                'email' => $cliente['email'],
+            ];
+
+            flash('success', '¡Cuenta creada! Bienvenido a la familia.');
+            header('Location: ' . url('finalizar'));
+            exit;
+        }
+
+        if (!empty($_SESSION['cliente'])) {
+            header('Location: ' . url('cuenta'));
             exit;
         }
 
@@ -178,5 +288,227 @@ class SiteController
         $sitePage = 'register';
 
         require_once __DIR__ . '/../views/site/register.php';
+    }
+
+    /**
+     * Checkout de pedidos a domicilio.
+     *
+     * GET  /finalizar                 → formulario (requiere sesión de cliente).
+     * GET  /finalizar?paypal=success  → vuelta de PayPal: captura y muestra
+     *                                    el seguimiento.
+     * GET  /finalizar?paypal=cancel   → el comprador canceló.
+     * POST /finalizar                 → crea pedido + domicilio + orden PayPal,
+     *                                    responde JSON con la URL de aprobación.
+     */
+    public function checkout()
+    {
+        if (isset($_GET['paypal'])) {
+            $this->paypalReturn((string) $_GET['paypal']);
+            return;
+        }
+
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $this->crearPedidoDomicilio();
+            return;
+        }
+
+        if (empty($_SESSION['cliente'])) {
+            header('Location: ' . url('ingresar') . '?next=finalizar');
+            exit;
+        }
+
+        $cliente = $this->clientModel->findByEmail($_SESSION['cliente']['email']);
+        $paypalConfigurado = (new PayPal())->configured();
+
+        $title = 'Finalizar pedido';
+        $sitePage = 'checkout';
+        $currency = setting('currency', '$');
+
+        require_once __DIR__ . '/../views/site/finalizar.php';
+    }
+
+    /** Vuelta de la pasarela: captura el pago aprobado o avisa de la cancelación. */
+    private function paypalReturn($status)
+    {
+        if ($status === 'cancel') {
+            flash('info', 'Pago cancelado. Tu pedido quedó sin cobrar; puedes intentarlo de nuevo.');
+            header('Location: ' . url('finalizar'));
+            exit;
+        }
+
+        $paypalOrderId = trim($_GET['order'] ?? '');
+        if ($status !== 'success' || $paypalOrderId === '') {
+            flash('error', 'La pasarela devolvió una respuesta inesperada.');
+            header('Location: ' . url('finalizar'));
+            exit;
+        }
+
+        try {
+            $capture = (new PayPal())->captureOrder($paypalOrderId);
+            if (($capture['capture_status'] ?? '') !== 'COMPLETED') {
+                throw new Exception('El pago no fue completado por PayPal.');
+            }
+            $orderId = $this->deliveryModel->confirmarPago(
+                $capture['paypal_order_id'],
+                $capture['capture_id'],
+                (float) ($capture['amount'] ?? 0)
+            );
+            if (!$orderId) {
+                throw new Exception('No se encontró el pedido asociado al pago.');
+            }
+        } catch (Exception $e) {
+            flash('error', 'No se pudo confirmar el pago: ' . $e->getMessage());
+            header('Location: ' . url('finalizar'));
+            exit;
+        }
+
+        $delivery = $this->deliveryModel->getByOrderId($orderId);
+        flash('success', '¡Pago confirmado! Tu pedido ya está en camino de preparación.');
+        header('Location: ' . url('rastrear/' . $delivery['tracking_token']));
+        exit;
+    }
+
+    /** Crea el pedido a domicilio y la orden de pago PayPal (JSON). */
+    private function crearPedidoDomicilio()
+    {
+        header('Content-Type: application/json; charset=utf-8');
+
+        if (empty($_SESSION['cliente'])) {
+            echo json_encode(['ok' => false, 'error' => 'login']);
+            exit;
+        }
+
+        // El cliente viene con Content-Type: application/json, así que NO viene
+        // en $_POST: se lee del body.
+        $input = json_decode(file_get_contents('php://input'), true);
+        if (!is_array($input)) {
+            $input = $_POST;
+        }
+
+        $items = $this->itemsDelPost($input);
+        if (empty($items)) {
+            echo json_encode(['ok' => false, 'error' => 'items']);
+            exit;
+        }
+
+        $direccion = trim((string) ($input['address'] ?? ''));
+        if ($direccion === '') {
+            echo json_encode(['ok' => false, 'error' => 'address']);
+            exit;
+        }
+        $notas = trim((string) ($input['notes'] ?? ''));
+
+        // Recomponer las líneas con el precio de la BD (nunca se confía en el
+        // precio que llega del navegador). Se usa el catálogo con descuentos
+        // aplicados (final_price), que es lo que el cliente vio al agregar.
+        $catalogo = $this->saleModel->getCatalog();
+        $porId = [];
+        foreach ($catalogo as $p) {
+            $porId[(int) $p['id']] = $p;
+        }
+        $lines = [];
+        foreach ($items as $item) {
+            $producto = $porId[(int) ($item['id'] ?? 0)] ?? null;
+            if (!$producto || ($producto['status'] ?? 'active') !== 'active') {
+                echo json_encode(['ok' => false, 'error' => 'product']);
+                exit;
+            }
+            $lines[] = [
+                'product_id' => (int) $producto['id'],
+                'quantity' => max(1, min(99, (int) ($item['qty'] ?? 1))),
+                'unit_price' => (float) $producto['final_price'],
+            ];
+        }
+        $total = 0;
+        foreach ($lines as $line) {
+            $total += $line['quantity'] * $line['unit_price'];
+        }
+        $total = round($total, 2);
+
+        $geo = GoogleMaps::geocode($direccion);
+        $lat = $geo['lat'] ?? null;
+        $lng = $geo['lng'] ?? null;
+
+        $cliente = $this->clientModel->findByEmail($_SESSION['cliente']['email']);
+        $creado = $this->deliveryModel->createDomicilio((int) $cliente['id'], $direccion, $lat, $lng, $total, $lines, $notas);
+        if (!$creado) {
+            echo json_encode(['ok' => false, 'error' => 'db']);
+            exit;
+        }
+
+        // Limpia el carrito client-side (lo hace el JS con el ok).
+        $orderId = (int) $creado['order_id'];
+
+        $paypal = new PayPal();
+        if (!$paypal->configured()) {
+            // Sin pasarela el pedido queda pendiente de pago; el personal lo
+            // cobra/confirma a la entrega.
+            echo json_encode([
+                'ok' => true,
+                'order_id' => $orderId,
+                'redirect' => url('rastrear/' . $creado['token']),
+            ]);
+            exit;
+        }
+
+        try {
+            $orden = $paypal->createOrder($total, 'Pedido #' . $orderId);
+            if (empty($orden['id'])) {
+                throw new Exception('PayPal no devolvió un id de orden.');
+            }
+            $this->deliveryModel->registrarPagoIniciado($orderId, $orden['id'], $total);
+        } catch (Exception $e) {
+            echo json_encode(['ok' => false, 'error' => 'paypal', 'message' => $e->getMessage(), 'order_id' => $orderId]);
+            exit;
+        }
+
+        echo json_encode([
+            'ok' => true,
+            'order_id' => $orderId,
+            'paypal_order_id' => $orden['id'],
+            'approval_url' => $orden['approve_link'],
+        ]);
+        exit;
+    }
+
+    /** Líneas del POST (items como JSON o array paralelo). */
+    private function itemsDelPost(array $input)
+    {
+        $raw = $input['items'] ?? null;
+        if (is_string($raw)) {
+            $decoded = json_decode($raw, true);
+            return is_array($decoded) ? $decoded : [];
+        }
+        if (is_array($raw)) {
+            return $raw;
+        }
+        return [];
+    }
+
+    /** Página de cuenta del cliente: sus datos + historial de pedidos. */
+    public function account()
+    {
+        if (empty($_SESSION['cliente'])) {
+            header('Location: ' . url('ingresar') . '?next=cuenta');
+            exit;
+        }
+
+        $cliente = $this->clientModel->findByEmail($_SESSION['cliente']['email']);
+        $historial = $this->deliveryModel->getPorCliente((int) $cliente['id']);
+
+        $title = 'Mi cuenta';
+        $sitePage = 'account';
+        $currency = setting('currency', '$');
+
+        require_once __DIR__ . '/../views/site/cuenta.php';
+    }
+
+    /** Cierra la sesión del cliente (salir). */
+    public function logout()
+    {
+        unset($_SESSION['cliente']);
+        flash('info', 'Cerraste sesión. ¡Vuelve pronto!');
+        header('Location: ' . url('/'));
+        exit;
     }
 }

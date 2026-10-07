@@ -57,6 +57,38 @@ class Product
         return $stmt->fetchAll();
     }
 
+    /**
+     * Reemplaza por completo la galería de un producto con las URLs dadas,
+     * respetando el orden del array (sort_order = índice + 1).
+     */
+    public function setGallery($productId, array $imageUrls)
+    {
+        try {
+            $this->conn->beginTransaction();
+
+            $stmtDel = $this->conn->prepare("DELETE FROM product_images WHERE product_id = :product_id;");
+            $stmtDel->bindParam(':product_id', $productId, PDO::PARAM_INT);
+            $stmtDel->execute();
+
+            if ($imageUrls) {
+                $stmtIns = $this->conn->prepare("INSERT INTO product_images (product_id, image_url, sort_order) VALUES (:product_id, :image_url, :sort_order);");
+                foreach (array_values($imageUrls) as $index => $imageUrl) {
+                    $sortOrder = $index + 1;
+                    $stmtIns->bindParam(':product_id', $productId, PDO::PARAM_INT);
+                    $stmtIns->bindParam(':image_url', $imageUrl);
+                    $stmtIns->bindParam(':sort_order', $sortOrder, PDO::PARAM_INT);
+                    $stmtIns->execute();
+                }
+            }
+
+            $this->conn->commit();
+            return true;
+        } catch (PDOException $e) {
+            $this->conn->rollBack();
+            return false;
+        }
+    }
+
     public function findByBarcode($barcode, $excludeId = null)
     {
         $query = "SELECT id FROM " . $this->table . " WHERE barcode = :barcode";

@@ -2,18 +2,24 @@
 
 require_once __DIR__ . '/../models/Product.php';
 require_once __DIR__ . '/../models/Category.php';
+require_once __DIR__ . '/../models/AuditLog.php';
+require_once __DIR__ . '/../models/Notificacion.php';
 
 class ProductController
 {
     private $db;
     private $productModel;
     private $categoryModel;
+    private $auditModel;
+    private $notifModel;
 
     public function __construct($db)
     {
         $this->db = $db;
         $this->productModel = new Product($db);
         $this->categoryModel = new Category($db);
+        $this->auditModel = new AuditLog($db);
+        $this->notifModel = new Notificacion($db);
     }
 
     public function index()
@@ -82,7 +88,20 @@ class ProductController
             $image_url = $uploaded;
         }
 
+        $galleryUrls = upload_gallery('gallery_images');
+        if ($galleryUrls === false) {
+            header('Location: ' . url('products/create'));
+            exit;
+        }
+
         if ($this->productModel->create($category_id, $name, $description, $sale_price, $production_cost, $stock, $min_stock, $image_url, $barcode)) {
+            $recordId = (int) $this->db->lastInsertId();
+            if ($galleryUrls) {
+                $this->productModel->setGallery($recordId, $galleryUrls);
+            }
+            $new = $this->productModel->getById($recordId);
+            $this->auditModel->write('create', 'productos', $recordId, null, $new ?: null, 'Producto creado.');
+            $this->notificarStockBajo($new ?: []);
             flash('success', 'Producto creado correctamente.');
         } else {
             flash('error', 'No se pudo crear el producto.');
@@ -105,6 +124,7 @@ class ProductController
 
         $title = 'Editar Producto';
         $currentModule = 'products';
+        $gallery = $this->productModel->getGallery($id);
         $breadcrumbs = [
             ['label' => 'Sistema', 'url' => url('dashboard')],
             ['label' => 'Productos', 'url' => url('products')],
@@ -153,7 +173,39 @@ class ProductController
             $image_url = $uploaded;
         }
 
+        $removedGallery = array_map('trim', $_POST['remove_gallery'] ?? []);
+        $removedGallery = array_filter($removedGallery);
+        $currentGallery = $this->productModel->getGallery($id);
+        $keptGallery = [];
+        foreach ($currentGallery as $item) {
+            if (!in_array($item['image_url'], $removedGallery, true)) {
+                $keptGallery[] = $item['image_url'];
+            }
+        }
+
+        $galleryUrls = upload_gallery('gallery_images');
+        if ($galleryUrls === false) {
+            header('Location: ' . url('products/edit/' . $id));
+            exit;
+        }
+
+        foreach ($removedGallery as $oldUrl) {
+            if (strncmp($oldUrl, '/uploads/', 9) === 0) {
+                $path = __DIR__ . '/../public' . $oldUrl;
+                if (is_file($path)) {
+                    @unlink($path);
+                }
+            }
+        }
+
+        $before = $this->productModel->getById($id);
+
         if ($this->productModel->update($id, $category_id, $name, $description, $sale_price, $production_cost, $stock, $min_stock, $image_url, $barcode, $status)) {
+            $finalGallery = array_merge($keptGallery, $galleryUrls);
+            $this->productModel->setGallery($id, $finalGallery);
+            $after = $this->productModel->getById($id);
+            $this->auditModel->write('update', 'productos', $id, $before, $after ?: null, 'Producto actualizado.');
+            $this->notificarStockBajo($after ?: []);
             flash('success', 'Producto actualizado correctamente.');
         } else {
             flash('error', 'No se pudo actualizar el producto.');
@@ -163,9 +215,41 @@ class ProductController
         exit;
     }
 
+    /** Crea o resuelve la notificación de stock bajo según el nuevo inventario. */
+    private function notificarStockBajo($product)
+    {
+        if (!$product || ($product['status'] ?? 'active') !== 'active') {
+            return;
+        }
+
+        $productId = (int) $product['id'];
+        $stock = (int) $product['stock'];
+        $minStock = (int) $product['min_stock'];
+
+        if ($stock <= $minStock) {
+            if ($this->notifModel->existe('stock_bajo', 'producto', $productId)) {
+                return;
+            }
+
+            $this->notifModel->crear(
+                'stock_bajo',
+                'Stock bajo',
+                'Stock bajo en "' . $product['name'] . '" — quedan ' . max($stock, 0) . ' unidades.',
+                'producto',
+                $productId
+            );
+        } else {
+            $this->notifModel->resolver('stock_bajo', 'producto', $productId);
+        }
+    }
+
     public function toggle($id)
     {
+        $before = $this->productModel->getById($id);
+
         if ($this->productModel->toggleStatus($id)) {
+            $after = $this->productModel->getById($id);
+            $this->auditModel->write('toggle', 'productos', $id, $before, $after ?: null, 'Estado del producto actualizado.');
             flash('success', 'Estado del producto actualizado correctamente.');
         } else {
             flash('error', 'No se pudo cambiar el estado del producto.');
@@ -177,7 +261,23 @@ class ProductController
 
     public function delete($id)
     {
-        if ($this->productModel->delete($id)) {
+        $before = $this->productModel->getById($id);
+        $galleryBefore = $before ? $this->productModel->getGallery($id) : [];
+
+        if ($before && $this->productModel->delete($id)) {
+            $urls = [$before['image_url'] ?? ''];
+            foreach ($galleryBefore as $gal) {
+                $urls[] = $gal['image_url'];
+            }
+            foreach ($urls as $oldUrl) {
+                if (strncmp($oldUrl, '/uploads/', 9) === 0) {
+                    $path = __DIR__ . '/../public' . $oldUrl;
+                    if (is_file($path)) {
+                        @unlink($path);
+                    }
+                }
+            }
+            $this->auditModel->write('delete', 'productos', $id, $before ?: null, null, 'Producto eliminado.');
             flash('success', 'Producto eliminado correctamente.');
         } else {
             flash('error', 'No se pudo eliminar el producto.');

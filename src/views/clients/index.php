@@ -8,12 +8,19 @@
 </div>
 
 <!-- Búsqueda y filtros -->
-<div class="mb-5 grid grid-cols-1 md:grid-cols-3 gap-3">
+<div class="mb-5 grid grid-cols-1 md:grid-cols-4 gap-3">
     <div class="md:col-span-2 relative">
         <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
         <input type="text" id="searchInput"
                class="w-full rounded-xl border border-gray-200 bg-white pl-10 pr-4 py-2.5 text-sm shadow-sm shadow-gray-200/60 outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100 transition"
-               placeholder="Buscar por nombre, correo, teléfono o dirección...">
+               placeholder="Buscar por nombre, DUI, empresa, correo, teléfono o dirección...">
+    </div>
+    <div>
+        <select id="filterCategory" class="search-filter w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm shadow-sm shadow-gray-200/60 outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100">
+            <option value="">Todos los tipos</option>
+            <option value="persona">Persona natural</option>
+            <option value="empresa">Empresa / otro</option>
+        </select>
     </div>
     <div>
         <select id="filterStatus" class="search-filter w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm shadow-sm shadow-gray-200/60 outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100">
@@ -31,6 +38,8 @@
             <thead>
                 <tr class="border-b border-gray-100 text-left text-xs uppercase tracking-wider text-gray-400">
                     <th class="px-5 py-3 font-semibold">Cliente</th>
+                    <th class="px-5 py-3 font-semibold">Tipo</th>
+                    <th class="px-5 py-3 font-semibold">DUI</th>
                     <th class="px-5 py-3 font-semibold">Teléfono</th>
                     <th class="px-5 py-3 font-semibold">Correo</th>
                     <th class="px-5 py-3 font-semibold">Dirección</th>
@@ -41,28 +50,57 @@
             </thead>
             <tbody id="crudTableBody">
                 <?php foreach ($clients as $item):
-                    $fullName = $item['name'] . ($item['last_name'] ? ' ' . $item['last_name'] : '');
-                    $detail = json_encode([
+                    $personName = trim($item['name'] . ' ' . ($item['last_name'] ?? ''));
+                    $fullName = $item['client_type'] === 'empresa'
+                        ? ($item['company_name'] ?: $item['name'])
+                        : ($personName !== '' ? $personName : $item['name']);
+                    $typeLabel = $item['client_type'] === 'empresa' ? 'Empresa' : 'Persona';
+                    $summary = [];
+                    $summary['Nombre'] = $item['client_type'] === 'empresa' ? ($personName !== '' ? $personName : $fullName) : $fullName;
+                    if ($item['client_type'] === 'empresa') {
+                        $summary['Empresa'] = $item['company_name'] ?: '—';
+                    }
+                    $summary['Edad'] = $item['birth_date'] ? (edadDesde($item['birth_date']) . ' años') : '—';
+                    $summaryJson = json_encode($summary, JSON_UNESCAPED_UNICODE);
+                    $detailRows = [
                         'ID' => $item['id'],
-                        'Nombre' => $fullName,
+                        'Tipo' => $typeLabel,
+                        'DUI' => $item['id_document'] ?: '—',
                         'Teléfono' => $item['phone'] ?: '—',
                         'Correo' => $item['email'] ?: '—',
                         'Dirección' => $item['address'] ?: '—',
-                        'Fecha de nacimiento' => $item['birth_date'] ? date('d/m/Y', strtotime($item['birth_date'])) : '—',
+                    ];
+                    if ($item['birth_date']) {
+                        $detailRows['Fecha de nacimiento'] = date('d/m/Y', strtotime($item['birth_date']));
+                    }
+                    $detailRows += [
                         'Fecha de registro' => date('d/m/Y', strtotime($item['registration_date'])),
                         'Estado' => $item['status'] === 'active' ? 'Activo' : 'Inactivo',
-                    ], JSON_UNESCAPED_UNICODE);
+                    ];
+                    $detail = json_encode($detailRows, JSON_UNESCAPED_UNICODE);
                 ?>
                 <tr class="border-b border-gray-50 last:border-0 hover:bg-orange-50/40 transition-colors"
                     data-status="<?= esc($item['status']) ?>"
-                    data-search="<?= esc(strtolower($fullName . ' ' . ($item['phone'] ?? '') . ' ' . ($item['email'] ?? '') . ' ' . ($item['address'] ?? ''))) ?>">
+                    data-category="<?= esc($item['client_type']) ?>"
+                    data-search="<?= esc(strtolower($fullName . ' ' . ($item['id_document'] ?? '') . ' ' . ($item['company_name'] ?? '') . ' ' . ($item['phone'] ?? '') . ' ' . ($item['email'] ?? '') . ' ' . ($item['address'] ?? '') . ' ' . $typeLabel)) ?>">
                     <td class="px-5 py-3.5">
                         <div class="flex items-center gap-3">
-                            <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-orange-100 to-orange-50 text-orange-500 flex items-center justify-center shrink-0 ring-1 ring-orange-100 shadow-sm">
-                                <i class="fa-solid fa-user text-sm"></i>
-                            </div>
+                            <?php if (!empty($item['profile_photo'])): ?>
+                                <img src="<?= esc($item['profile_photo']) ?>" alt="<?= esc($fullName) ?>"
+                                     class="w-9 h-9 rounded-lg object-cover shrink-0 ring-1 ring-orange-100 shadow-sm">
+                            <?php else: ?>
+                                <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-orange-100 to-orange-50 text-orange-500 flex items-center justify-center shrink-0 ring-1 ring-orange-100 shadow-sm">
+                                    <i class="fa-solid <?= $item['client_type'] === 'empresa' ? 'fa-building' : 'fa-user' ?> text-sm"></i>
+                                </div>
+                            <?php endif; ?>
                             <span class="font-semibold text-gray-900"><?= esc($fullName) ?></span>
                         </div>
+                    </td>
+                    <td class="px-5 py-3.5">
+                        <span class="inline-flex items-center rounded-full <?= $item['client_type'] === 'empresa' ? 'bg-sky-50 text-sky-600' : 'bg-orange-50 text-orange-600' ?> px-2.5 py-1 text-xs font-semibold"><?= esc($typeLabel) ?></span>
+                    </td>
+                    <td class="px-5 py-3.5">
+                        <span class="font-mono text-xs font-semibold text-gray-700 bg-gray-100 rounded-md px-2 py-1"><?= esc($item['id_document']) ?: '—' ?></span>
                     </td>
                     <td class="px-5 py-3.5 text-gray-600"><?= esc($item['phone']) ?: '—' ?></td>
                     <td class="px-5 py-3.5 text-gray-500"><?= esc($item['email']) ?: '—' ?></td>
@@ -87,7 +125,9 @@
                         <div class="flex items-center justify-end gap-1.5">
                             <button type="button" class="btn-action btn-detail" title="Ver detalle"
                                     data-title="<?= esc($fullName) ?>"
-                                    data-icon="fa-user"
+                                    data-image="<?= esc($item['profile_photo'] ?? '') ?>"
+                                    data-icon="<?= $item['client_type'] === 'empresa' ? 'fa-building' : 'fa-user' ?>"
+                                    data-summary='<?= esc($summaryJson) ?>'
                                     data-detail='<?= esc($detail) ?>'>
                                 <i class="fa-regular fa-eye"></i>
                             </button>

@@ -11,7 +11,7 @@
     <div class="border-b border-gray-100 bg-gradient-to-r from-orange-50/80 to-white px-6 py-5">
         <h2 class="font-semibold text-gray-900"><i class="fa-solid fa-user-tie text-orange-500 mr-2"></i>Información del empleado</h2>
     </div>
-    <form action="<?= url('employees/update/' . $employee['id']) ?>" method="POST" class="px-6 py-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+    <form action="<?= url('employees/update/' . $employee['id']) ?>" method="POST" enctype="multipart/form-data" class="px-6 py-6 grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
             <label for="name" class="form-label">Nombre <span class="text-red-500">*</span></label>
             <input type="text" id="name" name="name" class="form-input" value="<?= esc($employee['name']) ?>" required>
@@ -24,7 +24,7 @@
 
         <div>
             <label for="id_document" class="form-label">DUI <span class="text-red-500">*</span></label>
-            <input type="text" id="id_document" name="id_document" maxlength="30" class="form-input" value="<?= esc($employee['id_document']) ?>" required placeholder="Ej: 12345678-9 (9 dígitos, guion antes del último)">
+            <input type="text" id="id_document" name="id_document" data-dui inputmode="numeric" maxlength="10" pattern="\d{8}-\d" class="form-input" value="<?= esc($employee['id_document']) ?>" required placeholder="Ej: 01234567-8">
         </div>
 
         <div>
@@ -48,11 +48,6 @@
         </div>
 
         <div>
-            <label for="position" class="form-label">Cargo <span class="text-red-500">*</span></label>
-            <input type="text" id="position" name="position" maxlength="80" class="form-input" value="<?= esc($employee['position']) ?>" required placeholder="Ej: Panadero">
-        </div>
-
-        <div>
             <label for="base_salary" class="form-label">Salario base ($) <span class="text-red-500">*</span></label>
             <input type="number" step="0.01" min="0" id="base_salary" name="base_salary" class="form-input" value="<?= esc($employee['base_salary']) ?>" required>
         </div>
@@ -65,14 +60,21 @@
             </select>
         </div>
 
-        <div class="md:col-span-2 mt-2 border-t border-gray-100 pt-5">
-            <h3 class="font-semibold text-gray-900"><i class="fa-solid fa-key text-orange-500 mr-2"></i>Cuenta de acceso</h3>
-            <p class="text-sm text-gray-500 mt-1"><?= !empty($employee['has_login']) ? 'Deja la contraseña en blanco para mantener la actual.' : 'Completa usuario, correo, contraseña y rol para crear una cuenta de acceso.' ?></p>
+        <div>
+            <label for="role_id" class="form-label">Rol <span class="text-red-500">*</span></label>
+            <select id="role_id" name="role_id" class="form-input" required>
+                <option value="">Selecciona un rol...</option>
+                <?php foreach ($roles as $rol): ?>
+                    <option value="<?= (int) $rol['id'] ?>" <?= (int) $employee['role_id'] === (int) $rol['id'] ? 'selected' : '' ?>>
+                        <?= esc(Role::label($rol['name'])) ?><?= (int) $rol['is_admin'] === 1 ? ' (acceso total)' : '' ?>
+                    </option>
+                <?php endforeach; ?>
+            </select>
         </div>
 
-        <div>
-            <label for="username" class="form-label">Nombre de usuario</label>
-            <input type="text" id="username" name="username" maxlength="50" class="form-input" value="<?= esc($employee['username']) ?>" placeholder="Ej: cajero">
+        <div class="md:col-span-2 mt-2 border-t border-gray-100 pt-5">
+            <h3 class="font-semibold text-gray-900"><i class="fa-solid fa-key text-orange-500 mr-2"></i>Cuenta de acceso</h3>
+            <p class="text-sm text-gray-500 mt-1"><?= !empty($employee['has_login']) ? 'Deja la contraseña en blanco para mantener la actual.' : 'Opcional. Completa correo y contraseña para crear una cuenta de acceso.' ?></p>
         </div>
 
         <div>
@@ -85,15 +87,33 @@
             <input type="password" id="password" name="password" class="form-input" placeholder="<?= !empty($employee['has_login']) ? 'Dejar en blanco para mantener la actual' : 'Mínimo 6 caracteres' ?>">
         </div>
 
-        <div>
-            <label for="role_id" class="form-label">Rol</label>
-            <select id="role_id" name="role_id" class="form-input">
-                <option value="">Sin cuenta de acceso</option>
-                <?php foreach ($roles as $role): ?>
-                    <option value="<?= (int) $role['id'] ?>" <?= (string) $employee['role_id'] === (string) $role['id'] ? 'selected' : '' ?>><?= esc(ucfirst($role['name'])) ?></option>
-                <?php endforeach; ?>
-            </select>
+        <div class="md:col-span-2">
+            <label for="profile_photo" class="form-label">Foto de perfil</label>
+            <div class="flex items-center gap-4">
+                <?php if (!empty($employee['profile_photo'])): ?>
+                    <img src="<?= esc($employee['profile_photo']) ?>" alt="Foto de perfil actual"
+                         class="w-14 h-14 rounded-xl object-cover ring-1 ring-orange-100 shadow-sm">
+                <?php else: ?>
+                    <div class="w-14 h-14 rounded-xl bg-gradient-to-br from-orange-100 to-orange-50 text-orange-500 flex items-center justify-center ring-1 ring-orange-100 shadow-sm">
+                        <i class="fa-solid fa-user-tie"></i>
+                    </div>
+                <?php endif; ?>
+                <div class="flex-1">
+                    <input type="file" id="profile_photo" name="profile_photo" accept="image/*" class="form-input file:mr-3 file:rounded-lg file:border-0 file:bg-orange-50 file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-orange-600 hover:file:bg-orange-100">
+                    <p class="text-xs text-gray-400 mt-1">Opcional. Si no eliges archivo se mantendrá la foto actual.</p>
+                    <?php $cameraField = 'profile_photo'; require __DIR__ . '/../partials/camera_capture.php'; ?>
+                </div>
+            </div>
+            <?php if (!empty($employee['profile_photo'])): ?>
+                <label class="mt-2 inline-flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+                    <input type="checkbox" name="remove_profile_photo" value="1" class="rounded border-gray-300 text-orange-500 focus:ring-orange-200">
+                    Quitar foto actual
+                </label>
+            <?php endif; ?>
         </div>
+
+        <!-- Biometría: solo administradores. -->
+        <?php require __DIR__ . '/../partials/face_enroll.php'; ?>
 
         <div class="md:col-span-2 flex items-center gap-3 mt-2">
             <button type="submit" class="inline-flex items-center gap-2 rounded-xl bg-orange-500 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-orange-500/25 hover:bg-orange-600 hover:shadow-orange-500/40 hover:-translate-y-px transition-all">

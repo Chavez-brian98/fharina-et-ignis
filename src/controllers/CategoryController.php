@@ -1,16 +1,19 @@
 <?php
 
 require_once __DIR__ . '/../models/Category.php';
+require_once __DIR__ . '/../models/AuditLog.php';
 
 class CategoryController
 {
     private $db;
     private $categoryModel;
+    private $auditModel;
 
     public function __construct($db)
     {
         $this->db = $db;
         $this->categoryModel = new Category($db);
+        $this->auditModel = new AuditLog($db);
     }
 
     public function index()
@@ -57,6 +60,9 @@ class CategoryController
         }
 
         if ($this->categoryModel->create($name, $description, $display_order)) {
+            $recordId = (int) $this->db->lastInsertId();
+            $new = $this->categoryModel->getById($recordId);
+            $this->auditModel->write('create', 'categorias', $recordId, null, $new ?: null, 'Categoría creada.');
             flash('success', 'Categoría creada correctamente.');
         } else {
             flash('error', 'No se pudo crear la categoría.');
@@ -94,6 +100,8 @@ class CategoryController
             exit;
         }
 
+        $before = $this->categoryModel->getById($id);
+
         $name = $_POST['name'] ?? '';
         $description = $_POST['description'] ?? '';
         $display_order = (int) ($_POST['display_order'] ?? 0);
@@ -106,6 +114,8 @@ class CategoryController
         }
 
         if ($this->categoryModel->update($id, $name, $description, $display_order, $status)) {
+            $after = $this->categoryModel->getById($id);
+            $this->auditModel->write('update', 'categorias', $id, $before, $after ?: null, 'Categoría actualizada.');
             flash('success', 'Categoría actualizada correctamente.');
         } else {
             flash('error', 'No se pudo actualizar la categoría.');
@@ -117,7 +127,11 @@ class CategoryController
 
     public function toggle($id)
     {
+        $before = $this->categoryModel->getById($id);
+
         if ($this->categoryModel->toggleStatus($id)) {
+            $after = $this->categoryModel->getById($id);
+            $this->auditModel->write('toggle', 'categorias', $id, $before, $after ?: null, 'Estado de la categoría actualizado.');
             flash('success', 'Estado de la categoría actualizado correctamente.');
         } else {
             flash('error', 'No se pudo cambiar el estado de la categoría.');
@@ -129,6 +143,7 @@ class CategoryController
 
     public function delete($id)
     {
+        $before = $this->categoryModel->getById($id);
         $productCount = $this->categoryModel->countProducts($id);
 
         if ($productCount > 0) {
@@ -138,6 +153,7 @@ class CategoryController
         }
 
         if ($this->categoryModel->delete($id)) {
+            $this->auditModel->write('delete', 'categorias', $id, $before ?: null, null, 'Categoría eliminada.');
             flash('success', 'Categoría eliminada correctamente.');
         } else {
             flash('error', 'No se pudo eliminar la categoría.');

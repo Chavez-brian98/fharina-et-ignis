@@ -85,6 +85,30 @@
             </div>
             <input type="hidden" name="image_url" value="<?= esc($product['image_url']) ?>">
             <p class="text-xs text-gray-400 mt-1.5">JPG, PNG, WEBP o GIF · máximo 2 MB · se sube al sistema y se muestra en el POS.</p>
+            <?php $cameraField = 'image_file'; require __DIR__ . '/../partials/camera_capture.php'; ?>
+        </div>
+
+        <div class="md:col-span-2">
+            <label class="form-label">Galería de fotos</label>
+            <?php if (!empty($gallery)): ?>
+                <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-3">
+                    <?php foreach ($gallery as $gi): ?>
+                        <label class="relative group rounded-xl ring-1 ring-gray-200 bg-gray-50 overflow-hidden cursor-pointer">
+                            <img src="<?= esc($gi['image_url']) ?>" alt="Foto de galería" class="w-full h-24 object-cover">
+                            <span class="absolute inset-0 bg-gray-900/55 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5 text-xs font-semibold text-white">
+                                <input type="checkbox" name="remove_gallery[]" value="<?= esc($gi['image_url']) ?>"
+                                       class="w-4 h-4 rounded border-gray-300 text-orange-500 focus:ring-orange-500">
+                                Quitar
+                            </span>
+                        </label>
+                    <?php endforeach; ?>
+                </div>
+            <?php else: ?>
+                <p class="text-xs text-gray-400 mb-3">Este producto aún no tiene fotos de galería.</p>
+            <?php endif; ?>
+            <input type="file" id="gallery_images" name="gallery_images[]" accept="image/*" multiple data-gallery class="form-input">
+            <p class="text-xs text-gray-400 mt-1.5">Marca los recuadros para quitar fotos. Para añadir, selecciona varias o tómalas con la cámara.</p>
+            <?php $cameraField = 'gallery_images'; require __DIR__ . '/../partials/camera_capture.php'; ?>
         </div>
 
         <div class="md:col-span-2">

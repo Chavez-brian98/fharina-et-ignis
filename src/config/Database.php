@@ -10,18 +10,21 @@ class Database{
     private $conn;
 
     public function __construct(){
-        $this->db_service = $_ENV['DB_SERVICE'] ?: 'mysql';
-        $this->host = $_ENV['DB_HOST'] ?: 'localhost';
-        $this->db_name = $_ENV['DB_NAME'] ?: 'prueba';
-        $this->username = $_ENV['DB_USER'] ?: 'root';
-        $this->password = $_ENV['DB_PASSWORD'] ?: '';
+        // `??` y no `?:`: las claves pueden no existir en src/.env y con
+        // display_errors=1 un "Undefined array key" se imprime en la pagina.
+        $this->db_service = $_ENV['DB_SERVICE'] ?? 'mysql';
+        $this->host = $_ENV['DB_HOST'] ?? 'localhost';
+        $this->db_name = $_ENV['DB_NAME'] ?? 'prueba';
+        $this->username = $_ENV['DB_USER'] ?? 'root';
+        $this->password = $_ENV['DB_PASSWORD'] ?? '';
     }
 
     public function getConnection(){
         $this->conn = null;
 
         try{
-            $dsn = $this->db_service . ":host=" . $this->host . ";dbname=" . $this->db_name. ";charset=utf8";
+            // utf8mb4 (no utf8) para no truncar acentos y emojis de 4 bytes.
+            $dsn = $this->db_service . ":host=" . $this->host . ";dbname=" . $this->db_name. ";charset=utf8mb4";
 
             $this->conn = new PDO($dsn, $this->username, $this->password);
             $this->conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);

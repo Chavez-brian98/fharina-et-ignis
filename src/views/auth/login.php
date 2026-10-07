@@ -9,6 +9,7 @@
     <title><?= esc($businessName) ?> · Iniciar sesión</title>
 
     <script src="https://cdn.tailwindcss.com"></script>
+    <?php require __DIR__ . '/../partials/theme.php'; ?>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js@1.12.0/src/toastify.css">
     <link rel="stylesheet" href="/css/style.css">

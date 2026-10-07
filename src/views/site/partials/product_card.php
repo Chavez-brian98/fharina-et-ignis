@@ -8,6 +8,7 @@ $price = isset($p['sale_price']) ? number_format((float) $p['sale_price'], 2) : 
 $discount = isset($p['discount_percent']) ? (float) $p['discount_percent'] : 0;
 $final = isset($p['final_price']) ? number_format((float) $p['final_price'], 2) : $price;
 $cur = $currency ?? setting('currency', '$');
+$precioCarrito = isset($p['final_price']) ? (float) $p['final_price'] : (float) ($p['sale_price'] ?? 0);
 ?>
 <div class="group relative flex flex-col rounded-2xl bg-white ring-1 ring-gray-200 overflow-hidden transition-all duration-300 hover:ring-orange-300 hover:shadow-xl hover:shadow-gray-200/50">
     <a href="<?= url('producto/' . $id) ?>" class="block">
@@ -44,7 +45,7 @@ $cur = $currency ?? setting('currency', '$');
     </a>
 
     <div class="px-5 pb-5 mt-auto">
-        <button type="button" title="Próximamente"
+        <button type="button" data-add-to-cart data-id="<?= $id ?>" data-name="<?= esc($name) ?>" data-price="<?= $precioCarrito ?>"
                 class="w-full inline-flex items-center justify-center gap-2 bg-gray-900 text-white text-sm font-semibold px-4 py-2.5 rounded-full hover:bg-orange-500 transition-colors">
             <i class="fa-solid fa-cart-plus"></i> Agregar al carrito
         </button>

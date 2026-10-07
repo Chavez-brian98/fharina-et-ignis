@@ -78,9 +78,14 @@
                     data-search="<?= esc(strtolower($item['name'] . ' ' . ($item['description'] ?? '') . ' ' . $item['category_name'] . ' ' . ($item['barcode'] ?? ''))) ?>">
                     <td class="px-5 py-3.5">
                         <div class="flex items-center gap-3">
-                            <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-orange-100 to-orange-50 text-orange-500 flex items-center justify-center shrink-0 ring-1 ring-orange-100 shadow-sm">
-                                <i class="fa-solid fa-bread-slice text-sm"></i>
-                            </div>
+                            <?php if (!empty($item['image_url'])): ?>
+                                <img src="<?= esc($item['image_url']) ?>" alt="<?= esc($item['name']) ?>"
+                                     class="w-9 h-9 rounded-lg object-cover shrink-0 ring-1 ring-orange-100 shadow-sm">
+                            <?php else: ?>
+                                <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-orange-100 to-orange-50 text-orange-500 flex items-center justify-center shrink-0 ring-1 ring-orange-100 shadow-sm">
+                                    <i class="fa-solid fa-bread-slice text-sm"></i>
+                                </div>
+                            <?php endif; ?>
                             <span class="font-semibold text-gray-900"><?= esc($item['name']) ?></span>
                         </div>
                     </td>

@@ -20,29 +20,31 @@ DROP TABLE IF EXISTS
     productos, categorias,
     product_images,
     client_segment, client_segments, clients,
-    sales_commissions, performance_reviews, attendances, shifts, empleados,
-    roles, notificaciones, settings;
+    sales_commissions, performance_reviews, empleado_faces, attendances, shifts, empleados,
+    notificaciones, settings;
 SET FOREIGN_KEY_CHECKS = 1;
 
 -- ----------------------------------------------------------------------------
 -- TABLAS "PADRE" (sin dependencias)
 -- ----------------------------------------------------------------------------
-CREATE TABLE roles (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    name VARCHAR(50) NOT NULL UNIQUE,
-    description VARCHAR(255)
-) ENGINE=InnoDB;
-
 CREATE TABLE proveedores (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(120) NOT NULL,
+    tax_id VARCHAR(50),
     supplier_type VARCHAR(60),
     contact VARCHAR(100),
     phone VARCHAR(20),
     email VARCHAR(150),
     address VARCHAR(255),
+    supplies VARCHAR(255),
+    availability_days VARCHAR(60),
     payment_terms VARCHAR(150),
-    status ENUM('active','inactive') NOT NULL DEFAULT 'active'
+    notes TEXT,
+    status ENUM('active','inactive') NOT NULL DEFAULT 'active',
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_proveedores_name (name),
+    INDEX idx_proveedores_status (status)
 ) ENGINE=InnoDB;
 
 CREATE TABLE client_segments (
@@ -75,13 +77,23 @@ CREATE TABLE clients (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
     last_name VARCHAR(100) NOT NULL,
+    id_document VARCHAR(30) UNIQUE,
+    client_type ENUM('persona','empresa') NOT NULL DEFAULT 'persona',
+    company_name VARCHAR(150),
     phone VARCHAR(20),
     email VARCHAR(150) UNIQUE,
+    -- email sin password_hash = correo de contacto del POS (no obliga login).
+    -- password_hash sin email = imposible: el login del portal es por email.
+    password_hash VARCHAR(255),
     address VARCHAR(255),
+    profile_photo VARCHAR(500),
     birth_date DATE,
     registration_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     status ENUM('active','inactive') NOT NULL DEFAULT 'active',
-    INDEX idx_clients_name (last_name, name)
+    INDEX idx_clients_name (last_name, name),
+    CONSTRAINT chk_clients_login CHECK (
+        password_hash IS NULL OR email IS NOT NULL
+    )
 ) ENGINE=InnoDB;
 
 CREATE TABLE client_segment (
@@ -96,29 +108,73 @@ CREATE TABLE client_segment (
 -- ----------------------------------------------------------------------------
 -- 2. EMPLEADOS / RRHH
 -- ----------------------------------------------------------------------------
+-- Catálogo de roles administrable (módulo Roles y Permisos). El rol del
+-- empleado es una FK; los permisos viven en role_permissions (4 acciones por
+-- módulo) y employee_permissions (excepciones por empleado que ganan al rol).
+CREATE TABLE roles (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(60) NOT NULL UNIQUE,
+    description VARCHAR(255),
+    is_admin TINYINT(1) NOT NULL DEFAULT 0,
+    status ENUM('active','inactive') NOT NULL DEFAULT 'active',
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+
 CREATE TABLE empleados (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
     last_name VARCHAR(100) NOT NULL,
     id_document VARCHAR(30) NOT NULL UNIQUE,
-    username VARCHAR(50) UNIQUE,
     email VARCHAR(150) UNIQUE,
     password_hash VARCHAR(255),
-    role_id INT,
+    role_id INT NOT NULL,
     phone VARCHAR(20),
     address VARCHAR(255),
+    profile_photo VARCHAR(500),
+    -- Token del codigo QR personal de asistencia. Se genera bajo demanda
+    -- (Employee::qrToken) y no es una credencial de inicio de sesion.
+    qr_token VARCHAR(64) NULL,
     birth_date DATE,
     hire_date DATE NOT NULL,
-    position VARCHAR(80) NOT NULL,
     base_salary DECIMAL(10,2) NOT NULL,
     status ENUM('active','inactive') NOT NULL DEFAULT 'active',
     last_login TIMESTAMP NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_empleados_role FOREIGN KEY (role_id) REFERENCES roles(id),
     CONSTRAINT chk_empleados_login CHECK (
-        (role_id IS NULL AND username IS NULL AND email IS NULL AND password_hash IS NULL)
-        OR (role_id IS NOT NULL AND username IS NOT NULL AND email IS NOT NULL AND password_hash IS NOT NULL)
-    )
+        (email IS NULL AND password_hash IS NULL)
+        OR (email IS NOT NULL AND password_hash IS NOT NULL)
+    ),
+    CONSTRAINT fk_empleados_role FOREIGN KEY (role_id) REFERENCES roles(id),
+    UNIQUE KEY uq_empleados_qr (qr_token)
+) ENGINE=InnoDB;
+
+-- Permisos por rol: una fila por módulo con las 4 acciones.
+CREATE TABLE role_permissions (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    role_id INT NOT NULL,
+    module VARCHAR(50) NOT NULL,
+    can_view TINYINT(1) NOT NULL DEFAULT 0,
+    can_create TINYINT(1) NOT NULL DEFAULT 0,
+    can_edit TINYINT(1) NOT NULL DEFAULT 0,
+    can_delete TINYINT(1) NOT NULL DEFAULT 0,
+    UNIQUE KEY uq_role_module (role_id, module),
+    INDEX idx_rp_role (role_id),
+    CONSTRAINT fk_rp_role FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+-- Excepciones por empleado: si existe fila para un módulo, esa fila define
+-- por completo sus permisos en ese módulo (puede conceder o quitar acceso).
+CREATE TABLE employee_permissions (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    employee_id INT NOT NULL,
+    module VARCHAR(50) NOT NULL,
+    can_view TINYINT(1) NOT NULL DEFAULT 0,
+    can_create TINYINT(1) NOT NULL DEFAULT 0,
+    can_edit TINYINT(1) NOT NULL DEFAULT 0,
+    can_delete TINYINT(1) NOT NULL DEFAULT 0,
+    UNIQUE KEY uq_emp_module (employee_id, module),
+    INDEX idx_ep_emp (employee_id),
+    CONSTRAINT fk_ep_emp FOREIGN KEY (employee_id) REFERENCES empleados(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 CREATE TABLE shifts (
@@ -128,19 +184,58 @@ CREATE TABLE shifts (
     start_time TIME NOT NULL,
     end_time TIME NOT NULL,
     shift_type VARCHAR(50),
+    notes VARCHAR(255),
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_shifts_employee FOREIGN KEY (employee_id) REFERENCES empleados(id),
-    INDEX idx_shifts_emp_date (employee_id, work_date)
+    UNIQUE KEY uq_shift_emp_date (employee_id, work_date),
+    INDEX idx_shifts_date (work_date)
 ) ENGINE=InnoDB;
 
+-- Registro de entrada/salida. check_in/check_out guardan la hora; el metodo
+-- (manual/qr/rostro) deja constancia de como se registro cada momento.
+-- break_start/break_end modelan un descanso por jornada; para varios
+-- descansos habria que pasar a una tabla attendance_breaks.
+-- registered_by deja trazabilidad del ajuste manual hecho por un supervisor.
 CREATE TABLE attendances (
     id INT AUTO_INCREMENT PRIMARY KEY,
     employee_id INT NOT NULL,
     attendance_date DATE NOT NULL,
-    check_in TIME,
-    check_out TIME,
+    check_in TIME NULL,
+    check_out TIME NULL,
+    break_start TIME NULL,
+    break_end TIME NULL,
     state VARCHAR(30) NOT NULL DEFAULT 'presente',
+    check_in_method ENUM('manual','qr','rostro') NULL,
+    check_out_method ENUM('manual','qr','rostro') NULL,
+    notes VARCHAR(255),
+    registered_by INT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NULL ON UPDATE CURRENT_TIMESTAMP,
     CONSTRAINT fk_attendances_employee FOREIGN KEY (employee_id) REFERENCES empleados(id),
-    INDEX idx_attendances_emp_date (employee_id, attendance_date)
+    CONSTRAINT fk_attendances_registro FOREIGN KEY (registered_by) REFERENCES empleados(id) ON DELETE SET NULL,
+    UNIQUE KEY uq_attendance_emp_date (employee_id, attendance_date),
+    INDEX idx_attendances_date (attendance_date)
+) ENGINE=InnoDB;
+
+-- ----------------------------------------------------------------------------
+-- ROSTROS (reconocimiento facial del quiosco)
+-- ----------------------------------------------------------------------------
+-- descriptor = vector de 128 flotantes que FaceRecognitionNet produce en el
+-- navegador; se guarda como JSON. NO es una foto: es la medicion matematica
+-- que el modelo usa para comparar, y por eso alcanza con uno por empleado.
+-- 'model' queda escrito para poder invalidar los rostros si se cambia la red
+-- (los embeddings de redes distintas no son comparables entre si).
+CREATE TABLE empleado_faces (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    employee_id INT NOT NULL,
+    descriptor JSON NOT NULL,
+    model VARCHAR(80) NOT NULL,
+    quality DECIMAL(5,4) NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NULL ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_faces_employee FOREIGN KEY (employee_id) REFERENCES empleados(id) ON DELETE CASCADE,
+    UNIQUE KEY uq_face_employee (employee_id),
+    INDEX idx_faces_model (model)
 ) ENGINE=InnoDB;
 
 CREATE TABLE performance_reviews (
@@ -288,6 +383,20 @@ CREATE TABLE supplier_price_history (
     INDEX idx_sph_price (supplier_id, ingredient_id, price_date)
 ) ENGINE=InnoDB;
 
+-- Qué ingrediente entrega cada proveedor y a qué precio (oferta vigente).
+-- La UNIQUE (supplier_id, ingredient_id) garantiza un precio por dupla; al
+-- cambiar de precio se actualiza la fila (el historial queda en la tabla de
+-- arriba, que escribe Compras al recibir mercancía).
+CREATE TABLE supplier_ingredients (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    supplier_id INT NOT NULL,
+    ingredient_id INT NOT NULL,
+    unit_price DECIMAL(10,4) NOT NULL,
+    UNIQUE KEY uq_supplier_ingredient (supplier_id, ingredient_id),
+    CONSTRAINT fk_si_supplier FOREIGN KEY (supplier_id) REFERENCES proveedores(id) ON DELETE CASCADE,
+    CONSTRAINT fk_si_ingredient FOREIGN KEY (ingredient_id) REFERENCES ingredientes(id)
+) ENGINE=InnoDB;
+
 CREATE TABLE purchase_orders (
     id INT AUTO_INCREMENT PRIMARY KEY,
     supplier_id INT NOT NULL,
@@ -386,11 +495,23 @@ CREATE TABLE caja (
     physical_final_amount DECIMAL(10,2),
     difference DECIMAL(10,2),
     state ENUM('abierta','cerrada') NOT NULL DEFAULT 'abierta',
+    reopened_by INT NULL,
+    reopen_reason VARCHAR(255) NULL,
+    reopen_count INT NOT NULL DEFAULT 0,
+    -- Vale 1 solo si la caja está abierta y NULL si está cerrada; con el UNIQUE de
+    -- abajo MySQL rechaza (1062) una segunda caja abierta del mismo empleado.
+    state_open INT GENERATED ALWAYS AS (IF(state = 'abierta', 1, NULL)) VIRTUAL,
     CONSTRAINT fk_cash_opening_employee FOREIGN KEY (opening_employee_id) REFERENCES empleados(id),
     CONSTRAINT fk_cash_closing_employee FOREIGN KEY (closing_employee_id) REFERENCES empleados(id),
+    CONSTRAINT fk_cash_reopened_by FOREIGN KEY (reopened_by) REFERENCES empleados(id),
     INDEX idx_cash_state (state),
     INDEX idx_cash_date (cash_date)
 ) ENGINE=InnoDB;
+
+-- Un empleado no puede tener dos cajas abiertas a la vez (varias cajas cerradas
+-- del mismo día sí se permiten: eso cubre el caso de los turnos).
+ALTER TABLE caja
+    ADD CONSTRAINT uq_cash_open_per_employee UNIQUE (opening_employee_id, state_open);
 
 CREATE TABLE cash_register_movements (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -467,9 +588,15 @@ CREATE TABLE sales_commissions (
 CREATE TABLE pedidos (
     id INT AUTO_INCREMENT PRIMARY KEY,
     client_id INT NOT NULL,
-    recorded_by_employee_id INT NOT NULL,
+    -- NULL = pedido colocado desde el portal web (no lo tomo un empleado).
+    recorded_by_employee_id INT NULL,
     order_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     delivery_date DATE NOT NULL,
+    -- Dirección de entrega del pedido. NULL = se recoge en tienda.
+    delivery_address VARCHAR(255) NULL,
+    -- reserva = pedido personalizado por encargo; domicilio = pedido en línea
+    -- del portal web que genera una fila en la tabla `deliveries`.
+    order_type ENUM('reserva','domicilio') NOT NULL DEFAULT 'reserva',
     state ENUM('pendiente','aprobado','en_produccion','listo','entregado','rechazado','cancelado') NOT NULL DEFAULT 'pendiente',
     rejection_reason VARCHAR(255),
     total DECIMAL(10,2) NOT NULL DEFAULT 0,
@@ -479,7 +606,8 @@ CREATE TABLE pedidos (
     CONSTRAINT fk_orders_client FOREIGN KEY (client_id) REFERENCES clients(id),
     CONSTRAINT fk_orders_employee FOREIGN KEY (recorded_by_employee_id) REFERENCES empleados(id),
     INDEX idx_orders_state (state),
-    INDEX idx_orders_date (order_date)
+    INDEX idx_orders_date (order_date),
+    INDEX idx_orders_type (order_type)
 ) ENGINE=InnoDB;
 
 CREATE TABLE order_details (
@@ -497,9 +625,13 @@ CREATE TABLE order_details (
 CREATE TABLE order_payments (
     id INT AUTO_INCREMENT PRIMARY KEY,
     order_id INT NOT NULL,
-    employee_id INT NOT NULL,
+    -- NULL cuando el pago se hizo en línea (PayPal): no lo registró un empleado.
+    employee_id INT NULL,
     amount DECIMAL(10,2) NOT NULL,
     payment_method VARCHAR(40) NOT NULL,
+    -- Referencias de la pasarela PayPal (sandbox/live) cuando el pago fue web.
+    paypal_order_id VARCHAR(64) NULL,
+    paypal_capture_id VARCHAR(64) NULL,
     payment_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_op_order FOREIGN KEY (order_id) REFERENCES pedidos(id),
     CONSTRAINT fk_op_employee FOREIGN KEY (employee_id) REFERENCES empleados(id),
@@ -544,6 +676,49 @@ CREATE TABLE email_notifications (
 ) ENGINE=InnoDB;
 
 -- ----------------------------------------------------------------------------
+-- 8b. DOMICILIOS EN LÍNEA (depende de pedidos, empleados)
+-- Cada pedido a domicilio (pedidos.order_type='domicilio') genera UNA fila
+-- aquí con su propia máquina de estados (tomado -> preparando -> en_camino ->
+-- finalizado), la coordenada de destino (geocodificada con Google en el
+-- checkout) y un token público para la página de seguimiento.
+-- ----------------------------------------------------------------------------
+CREATE TABLE deliveries (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    order_id INT NOT NULL,
+    driver_id INT NULL,
+    state ENUM('tomado','preparando','en_camino','finalizado') NOT NULL DEFAULT 'tomado',
+    destination_lat DECIMAL(10,7) NULL,
+    destination_lng DECIMAL(10,7) NULL,
+    destination_address VARCHAR(255) NOT NULL,
+    tracking_token VARCHAR(64) NOT NULL UNIQUE,
+    assigned_at TIMESTAMP NULL,
+    -- Última posición recibida del navegador del domiciliero: permite marcar
+    -- "sin conexión" cuando last_seen_at queda muy atrás.
+    last_seen_at TIMESTAMP NULL,
+    tomado_at TIMESTAMP NULL,
+    preparando_at TIMESTAMP NULL,
+    en_camino_at TIMESTAMP NULL,
+    finalizado_at TIMESTAMP NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_delivery_order (order_id),
+    CONSTRAINT fk_del_order FOREIGN KEY (order_id) REFERENCES pedidos(id),
+    CONSTRAINT fk_del_driver FOREIGN KEY (driver_id) REFERENCES empleados(id),
+    INDEX idx_del_state (state)
+) ENGINE=InnoDB;
+
+-- Historial de posiciones GPS que va reportando el domiciliero (geolocation
+-- del navegador). La última posición también vive en memoria en el relay WS.
+CREATE TABLE delivery_locations (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    delivery_id INT NOT NULL,
+    lat DECIMAL(10,7) NOT NULL,
+    lng DECIMAL(10,7) NOT NULL,
+    reported_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_dl_delivery FOREIGN KEY (delivery_id) REFERENCES deliveries(id) ON DELETE CASCADE,
+    INDEX idx_dl_delivery (delivery_id)
+) ENGINE=InnoDB;
+
+-- ----------------------------------------------------------------------------
 -- 12. NOTIFICACIONES INTERNAS (depende de empleados)
 -- ----------------------------------------------------------------------------
 CREATE TABLE notificaciones (
@@ -582,16 +757,31 @@ CREATE TABLE contact_messages (
 ) ENGINE=InnoDB;
 
 -- ----------------------------------------------------------------------------
+-- 15. BITÁCORA (auditoría de acciones en el sistema)
+-- ----------------------------------------------------------------------------
+CREATE TABLE audit_logs (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NULL,
+    action VARCHAR(50) NOT NULL,
+    table_name VARCHAR(100) NULL,
+    record_id INT UNSIGNED NULL,
+    old_data JSON NULL,
+    new_data JSON NULL,
+    description VARCHAR(255) NULL,
+    ip_address VARCHAR(45) NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    KEY idx_audit_user (user_id),
+    KEY idx_audit_action (action),
+    KEY idx_audit_table (table_name),
+    CONSTRAINT fk_audit_logs_user FOREIGN KEY (user_id) REFERENCES empleados(id) ON DELETE SET NULL
+) ENGINE=InnoDB;
+
+-- ----------------------------------------------------------------------------
 -- SEED DATA (datos de ejemplo)
 -- ----------------------------------------------------------------------------
-INSERT INTO roles (name, description) VALUES
-('administrador', 'Acceso total al sistema'),
-('cajero', 'Gestiona ventas y caja'),
-('panadero', 'Gestiona producción');
-
-INSERT INTO proveedores (name, supplier_type, contact, phone, email, payment_terms) VALUES
-('Harinera Central', 'Harinera', 'María López', '2222-1111', 'ventas@harineracentral.com', '30 días'),
-('Lácteos Don Pepe', 'Lácteos', 'Pedro Martínez', '2333-2222', 'info@lacteosdonpepe.com', 'Contado');
+INSERT INTO proveedores (name, tax_id, supplier_type, contact, phone, email, address, supplies, availability_days, payment_terms, notes) VALUES
+('Harinera Central', '0614-2233345-6', 'Harinera', 'María López', '2222-1111', 'ventas@harineracentral.com', 'Av. Principal km 4, ruta al puerto', 'Harina de trigo, levadura, kraft', 'lun,mar,mie,jue,vie', '30 días', 'Entrega en la panadería antes de las 8:00 a.m.'),
+('Lácteos Don Pepe', '0614-5567788-2', 'Lácteos', 'Pedro Martínez', '2333-2222', 'info@lacteosdonpepe.com', 'Carretera al puerto, km 2', 'Leche, mantequilla, queso crema', 'mar,jue,sab', 'Contado', 'Refrigeración propia: dejar en cámara fría.');
 
 INSERT INTO ingredientes (name, unit_of_measure, current_stock, minimum_stock, unit_cost, main_supplier_id) VALUES
 ('Harina de trigo', 'kg', 50, 20, 1.20, 1),
@@ -636,20 +826,137 @@ INSERT INTO client_segments (name, description) VALUES
 ('Frecuentes', 'Clientes que compran al menos una vez por semana'),
 ('VIP', 'Clientes de alto valor');
 
-INSERT INTO clients (name, last_name, phone, email, address) VALUES
-('Ana', 'García', '5555-0001', 'ana.garcia@mail.com', 'Zona 1, Ciudad'),
-('Luis', 'Pérez', '5555-0002', 'luis.perez@mail.com', 'Zona 10, Ciudad');
+INSERT INTO clients (name, last_name, id_document, client_type, company_name, phone, email, address) VALUES
+('Ana', 'García', '01234567-8', 'persona', NULL, '5555-0001', 'ana.garcia@mail.com', 'Zona 1, Ciudad'),
+('Luis', 'Pérez', '02345678-9', 'persona', NULL, '5555-0002', 'luis.perez@mail.com', 'Zona 10, Ciudad'),
+('Panadería del Valle', '', '03678901-2', 'empresa', 'Panadería del Valle', '5555-0003', 'ventas@valle.com', 'Zona 4, Ciudad');
 
 INSERT INTO client_segment (client_id, segment_id) VALUES (1, 1), (2, 2);
 
 -- ----------------------------------------------------------------------------
+-- ROLES Y PERMISOS SEED
+-- ----------------------------------------------------------------------------
+INSERT INTO roles (id, name, description, is_admin, status) VALUES
+(1, 'administrador', 'Acceso total a todos los módulos y acciones.', 1, 'active'),
+(2, 'sub_jefe', 'Supervisión de operaciones, catálogo y reportes (sin configuración).', 0, 'active'),
+(3, 'cajero', 'Acceso al punto de venta y clientes.', 0, 'active'),
+(4, 'mesero', 'Atención en salón: punto de venta, clientes y consulta de catálogo.', 0, 'active'),
+(5, 'produccion', 'Producción e inventario: recetas, ingredientes y stock.', 0, 'active'),
+(6, 'domiciliero', 'Entregas a domicilio y consulta de pedidos.', 0, 'active');
+
+-- role_permissions: una fila por módulo y rol. Los módulos que no aparecen
+-- quedan en "sin acceso" para ese rol (no hace falta fila con todo en 0).
+-- (mod, view, create, edit, delete)
+INSERT INTO role_permissions (role_id, module, can_view, can_create, can_edit, can_delete) VALUES
+-- Sub jefe: casi todo, salvo configuración/roles/empleados.
+(2, 'dashboard', 1, 0, 0, 0),
+(2, 'pos', 1, 1, 0, 0),
+(2, 'clients', 1, 1, 1, 0),
+(2, 'cash_register', 1, 1, 1, 0),
+(2, 'products', 1, 1, 1, 0),
+(2, 'categories', 1, 1, 1, 0),
+(2, 'inventory', 1, 0, 0, 0),
+(2, 'production', 1, 0, 0, 0),
+(2, 'suppliers', 1, 1, 1, 1),
+(2, 'purchases', 1, 1, 1, 1),
+(2, 'orders', 1, 1, 1, 1),
+(2, 'promotions', 1, 1, 1, 1),
+(2, 'reports', 1, 0, 0, 0),
+(2, 'statistics', 1, 0, 0, 0),
+-- Horarios: sub jefe asigna turnos y corrige la asistencia del equipo.
+-- ('attendance' es 'always' y no necesita fila propia: todos la tienen.)
+(2, 'schedules', 1, 1, 1, 1),
+-- Registros del Quiosco: solo lo mira el sub jefe y el administrador
+-- (is_admin hace bypass, no necesita fila). Lectura pura.
+(2, 'kiosk_log', 1, 0, 0, 0),
+-- Cajero: solo POS y clientes (+ su propio perfil y dashboard).
+(3, 'dashboard', 1, 0, 0, 0),
+(3, 'pos', 1, 1, 0, 0),
+(3, 'clients', 1, 1, 1, 0),
+(3, 'cash_register', 1, 1, 0, 0),
+(3, 'profile', 1, 0, 1, 0),
+-- Mesero: salón; consulta catálogo sin modificarlo.
+(4, 'dashboard', 1, 0, 0, 0),
+(4, 'pos', 1, 1, 0, 0),
+(4, 'clients', 1, 1, 1, 0),
+(4, 'products', 1, 0, 0, 0),
+(4, 'categories', 1, 0, 0, 0),
+(4, 'profile', 1, 0, 1, 0),
+-- Producción: catálogo + inventario/producción (consulta y edición de productos).
+(5, 'products', 1, 1, 1, 0),
+(5, 'categories', 1, 0, 0, 0),
+(5, 'inventory', 1, 1, 1, 1),
+(5, 'production', 1, 0, 0, 0),
+(5, 'suppliers', 1, 0, 0, 0),
+-- Compras: producción consulta y puede EDITAR (necesario para registrar la
+-- recepción de mercancía), pero no crea ni elimina órdenes.
+(5, 'purchases', 1, 0, 1, 0),
+(5, 'profile', 1, 0, 1, 0),
+-- Domiciliero: pedidos y consulta de clientes.
+(6, 'dashboard', 1, 0, 0, 0),
+(6, 'pos', 1, 1, 0, 0),
+(6, 'orders', 1, 1, 1, 0),
+(6, 'clients', 1, 0, 0, 0),
+(6, 'profile', 1, 0, 1, 0),
+-- Horarios: los demas roles solo usan 'Mi Asistencia' (modulo 'always').
+-- Un cajero puede VER el roster del dia, pero no asignar turnos ni corregir
+-- la marcacion de un companero.
+(3, 'schedules', 1, 0, 0, 0),
+-- Domicilios: el sub jefe supervisa todos los despachos; el domiciliero
+-- consulta, se asigna pedidos (create) y avanza estados (edit); no borra.
+(2, 'domicilios', 1, 1, 1, 1),
+(6, 'domicilios', 1, 1, 1, 0);
+
+-- ----------------------------------------------------------------------------
 -- DASHBOARD SEED (empleados, promociones, caja, ventas, pedidos)
 -- ----------------------------------------------------------------------------
--- Los empleados con credenciales de acceso (role_id/username/email/password_hash)
-INSERT INTO empleados (id, name, last_name, id_document, username, email, password_hash, role_id, phone, address, birth_date, hire_date, position, base_salary) VALUES
-(1, 'Carlos', 'Ramírez', 'PAN-0001', 'ramirez', 'carlos.ramirez@bakery.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 3, '5555-0101', 'Zona 5, Ciudad', '1990-03-15', '2023-05-01', 'Panadero', 1200.00),
-(2, 'María', 'González', 'CAJ-0001', 'cajero', 'maria.gonzalez@bakery.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 2, '5555-0102', 'Zona 3, Ciudad', '1995-07-22', '2023-06-15', 'Cajero', 1000.00),
-(3, 'BRIAN JOSUE CHAVEZ RECINOS', 'Administrador', 'ADM-0001', 'BRIAN JOSUE CHAVEZ RECINOS', 'admin@ignis.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 1, NULL, NULL, NULL, '2023-01-01', 'Administrador', 1500.00);
+-- Los empleados con credenciales de acceso (email/password_hash + role_id)
+-- El acceso es solo con el correo; como nombre se usa name + last_name.
+INSERT INTO empleados (id, name, last_name, id_document, email, password_hash, role_id, phone, address, birth_date, hire_date, base_salary) VALUES
+(1, 'Carlos', 'Ramírez', '00000001-1', 'carlos.ramirez@bakery.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 5, '5555-0101', 'Zona 5, Ciudad', '1990-03-15', '2023-05-01', 1200.00),
+(2, 'María', 'González', '00000002-2', 'maria.gonzalez@bakery.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 3, '5555-0102', 'Zona 3, Ciudad', '1995-07-22', '2023-06-15', 1000.00),
+(3, 'BRIAN JOSUE CHAVEZ RECINOS', 'Administrador', '00000003-3', 'admin@ignis.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 1, NULL, NULL, NULL, '2023-01-01', 1500.00);
+
+-- Compras de ejemplo: una recibida (con su historial de precios), una parcial y
+-- una pendiente, para que el módulo muestre los tres estados de un vistazo.
+INSERT INTO purchase_orders (supplier_id, employee_id, order_date, estimated_delivery_date, state, total) VALUES
+(1, 3, DATE_SUB(CURDATE(), INTERVAL 9 DAY), DATE_SUB(CURDATE(), INTERVAL 7 DAY), 'recibida', 105.00),
+(2, 3, DATE_SUB(CURDATE(), INTERVAL 4 DAY), DATE_SUB(CURDATE(), INTERVAL 1 DAY), 'parcial', 100.00),
+(1, 3, CURDATE(), DATE_ADD(CURDATE(), INTERVAL 2 DAY), 'pendiente', 70.00);
+
+INSERT INTO purchase_order_details (purchase_order_id, ingredient_id, quantity, unit_price, subtotal) VALUES
+(1, 1, 60.000, 1.2500, 75.00),
+(1, 2, 6.000, 5.0000, 30.00),
+(2, 3, 25.000, 4.5000, 112.50),
+(3, 1, 40.000, 1.3000, 52.00),
+(3, 2, 6.000, 3.0000, 18.00);
+
+-- La recepción de la orden 1 llegó completa; la de la 2 solo trae 20 de 25 kg.
+INSERT INTO merchandise_receipts (purchase_order_id, employee_id, receipt_date, observations) VALUES
+(1, 3, DATE_SUB(NOW(), INTERVAL 7 DAY), 'Factura 0001-1234, empaque íntegro.'),
+(2, 3, DATE_SUB(NOW(), INTERVAL 1 DAY), 'Faltaron 5 kg; el proveedor repone mañana.');
+
+INSERT INTO receipt_details (receipt_id, ingredient_id, expected_quantity, received_quantity) VALUES
+(1, 1, 60.000, 60.000),
+(1, 2, 6.000, 6.000),
+(2, 3, 25.000, 20.000);
+
+-- Historial de precios que dejó cada recepción (el de la orden 3 aún no llega).
+INSERT INTO supplier_price_history (supplier_id, ingredient_id, price, price_date) VALUES
+(1, 1, 1.2500, DATE_SUB(CURDATE(), INTERVAL 7 DAY)),
+(1, 2, 5.0000, DATE_SUB(CURDATE(), INTERVAL 7 DAY)),
+(2, 3, 4.5000, DATE_SUB(CURDATE(), INTERVAL 1 DAY));
+
+-- Ofertas de los proveedores: qué ingrediente entrega cada uno y a qué precio.
+INSERT INTO supplier_ingredients (supplier_id, ingredient_id, unit_price) VALUES
+(1, 1, 1.2500),
+(1, 2, 5.0000),
+(2, 3, 4.5000);
+
+INSERT INTO ingredient_inventory_movements (ingredient_id, movement_type, quantity, reason, employee_id, reference) VALUES
+(1, 'entrada', 60.000, 'Recepción de compra #1', 3, 'Compra #1'),
+(2, 'entrada', 6.000, 'Recepción de compra #1', 3, 'Compra #1'),
+(3, 'entrada', 20.000, 'Recepción de compra #2', 3, 'Compra #2');
 
 INSERT INTO promociones (id, name, promotion_type, discount_percentage, start_date, end_date, status) VALUES
 (1, '2x1 Pan de Queso', 'dos_por_uno', 50.00, DATE_SUB(CURDATE(), INTERVAL 7 DAY), DATE_ADD(CURDATE(), INTERVAL 7 DAY), 'active'),
@@ -810,13 +1117,13 @@ INSERT INTO sale_payments (sale_id, payment_method, amount) VALUES
 (41, 'efectivo', 100.00),
 (42, 'transferencia', 140.00);
 
-INSERT INTO pedidos (id, client_id, recorded_by_employee_id, order_date, delivery_date, state, rejection_reason, total, paid_amount, remaining_balance, notes) VALUES
-(1, 1, 3, DATE_SUB(CURDATE(), INTERVAL 3 DAY), DATE_ADD(CURDATE(), INTERVAL 2 DAY), 'pendiente', NULL, 350.00, 100.00, 250.00, 'Pastel de bodas para 50 personas'),
-(2, 2, 3, DATE_SUB(CURDATE(), INTERVAL 4 DAY), DATE_ADD(CURDATE(), INTERVAL 1 DAY), 'aprobado', NULL, 120.00, 120.00, 0.00, 'Pedido para cumpleaños'),
-(3, 1, 3, DATE_SUB(CURDATE(), INTERVAL 2 DAY), DATE_ADD(CURDATE(), INTERVAL 5 DAY), 'en_produccion', NULL, 210.00, 100.00, 110.00, 'Torta especial de chocolate'),
-(4, 2, 3, DATE_SUB(CURDATE(), INTERVAL 1 DAY), CURDATE(), 'listo', NULL, 45.00, 45.00, 0.00, 'Listo para recoger'),
-(5, 1, 3, DATE_SUB(CURDATE(), INTERVAL 8 DAY), DATE_SUB(CURDATE(), INTERVAL 6 DAY), 'entregado', NULL, 80.00, 80.00, 0.00, 'Entregado a domicilio'),
-(6, 2, 3, DATE_SUB(CURDATE(), INTERVAL 5 DAY), DATE_SUB(CURDATE(), INTERVAL 3 DAY), 'rechazado', 'Cliente canceló el pedido', 100.00, 0.00, 0.00, 'Cancelado por el cliente');
+INSERT INTO pedidos (id, client_id, recorded_by_employee_id, order_date, delivery_date, delivery_address, state, rejection_reason, total, paid_amount, remaining_balance, notes) VALUES
+(1, 1, 3, DATE_SUB(CURDATE(), INTERVAL 3 DAY), DATE_ADD(CURDATE(), INTERVAL 2 DAY), 'Zona 1, Ciudad (casa de Ana)', 'pendiente', NULL, 350.00, 100.00, 250.00, 'Pastel de bodas para 50 personas'),
+(2, 2, 3, DATE_SUB(CURDATE(), INTERVAL 4 DAY), DATE_ADD(CURDATE(), INTERVAL 1 DAY), NULL, 'aprobado', NULL, 120.00, 120.00, 0.00, 'Pedido para cumpleaños'),
+(3, 1, 3, DATE_SUB(CURDATE(), INTERVAL 2 DAY), DATE_ADD(CURDATE(), INTERVAL 5 DAY), 'Zona 1, Ciudad (casa de Ana)', 'en_produccion', NULL, 210.00, 100.00, 110.00, 'Torta especial de chocolate'),
+(4, 2, 3, DATE_SUB(CURDATE(), INTERVAL 1 DAY), CURDATE(), NULL, 'listo', NULL, 45.00, 45.00, 0.00, 'Listo para recoger'),
+(5, 1, 3, DATE_SUB(CURDATE(), INTERVAL 8 DAY), DATE_SUB(CURDATE(), INTERVAL 6 DAY), 'Zona 1, Ciudad (casa de Ana)', 'entregado', NULL, 80.00, 80.00, 0.00, 'Entregado a domicilio'),
+(6, 2, 3, DATE_SUB(CURDATE(), INTERVAL 5 DAY), DATE_SUB(CURDATE(), INTERVAL 3 DAY), NULL, 'rechazado', 'Cliente canceló el pedido', 100.00, 0.00, 0.00, 'Cancelado por el cliente');
 
 INSERT INTO order_details (order_id, product_id, personalized_description, quantity, unit_price, subtotal) VALUES
 (1, 4, 'Pastel de bodas', 1, 350.00, 350.00),
@@ -828,7 +1135,9 @@ INSERT INTO order_details (order_id, product_id, personalized_description, quant
 
 INSERT INTO notificaciones (destination_employee_id, notification_type, title, message, reference_type, reference_id) VALUES
 (3, 'stock_bajo', 'Stock bajo', 'El producto "Concha" está por debajo del stock mínimo.', 'producto', 2),
-(3, 'pedido_listo', 'Pedido listo', 'El pedido #4 está listo para recoger.', 'pedido', 4);
+(3, 'pedido_listo', 'Pedido listo', 'El pedido #4 está listo para recoger.', 'pedido', 4),
+-- Sin destinatario = visible para todos los empleados (la campana de notificaciones).
+(NULL, 'pedido_nuevo', 'Nuevo pedido', 'Ana García reservó el pedido #1 (entrega en 2 días).', 'pedido', 1);
 
 INSERT INTO settings (setting_key, setting_value) VALUES
 ('system_name', 'Panadería'),
@@ -837,6 +1146,73 @@ INSERT INTO settings (setting_key, setting_value) VALUES
 ('phone', '5555-1234'),
 ('currency', '$'),
 ('tax_rate', '0'),
+('cash_register_base', '125.00'),
 ('ticket_footer', '¡Gracias por su compra!'),
 ('system_logo', ''),
-('login_photo', 'https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=1200&q=80');
+('login_photo', 'https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=1200&q=80'),
+('primary_color', '#f97316'),
+-- Zona horaria del negocio. TODO el sistema razona en esta zona: los
+-- contenedores corren en UTC, asi que sin esto las marcaciones de la tarde
+-- caen en el dia siguiente. Cambiala en Configuracion si el sistema sale a
+-- otro pais.
+('timezone', 'America/El_Salvador'),
+-- Clave del quiosco de asistencia (/kiosco). Es de la DEMO: cambiala en
+-- Configuracion antes de usarlo de verdad.
+('kiosk_key', 'ignis-2026');
+
+-- ----------------------------------------------------------------------------
+-- HORARIOS Y ASISTENCIA (ejemplo)
+-- ----------------------------------------------------------------------------
+-- Turnos de la semana pasada y de la que viene. Se siembran los turnos de HOY
+-- pero NO marcaciones de hoy: el seed no sabe a que hora se levanta el
+-- servidor, y una entrada "futura" se veria raro. Las marcaciones demo van
+-- solo para dias ya cerrados.
+INSERT INTO shifts (employee_id, work_date, start_time, end_time, shift_type, notes) VALUES
+(1, DATE_SUB(CURDATE(), INTERVAL 6 DAY), '07:00:00', '15:00:00', 'manana', NULL),
+(1, DATE_SUB(CURDATE(), INTERVAL 5 DAY), '07:00:00', '15:00:00', 'manana', NULL),
+(1, DATE_SUB(CURDATE(), INTERVAL 4 DAY), '07:00:00', '15:00:00', 'manana', NULL),
+(1, DATE_SUB(CURDATE(), INTERVAL 3 DAY), '07:00:00', '15:00:00', 'manana', 'Cubre preparacion'),
+(1, DATE_SUB(CURDATE(), INTERVAL 2 DAY), '07:00:00', '15:00:00', 'manana', NULL),
+(1, DATE_SUB(CURDATE(), INTERVAL 1 DAY), '07:00:00', '15:00:00', 'manana', NULL),
+(1, CURDATE(), '07:00:00', '15:00:00', 'manana', NULL),
+(1, DATE_ADD(CURDATE(), INTERVAL 1 DAY), '07:00:00', '15:00:00', 'manana', NULL),
+(1, DATE_ADD(CURDATE(), INTERVAL 2 DAY), '07:00:00', '15:00:00', 'manana', NULL),
+(2, DATE_SUB(CURDATE(), INTERVAL 6 DAY), '12:00:00', '20:00:00', 'tarde', NULL),
+(2, DATE_SUB(CURDATE(), INTERVAL 5 DAY), '12:00:00', '20:00:00', 'tarde', NULL),
+(2, DATE_SUB(CURDATE(), INTERVAL 4 DAY), '12:00:00', '20:00:00', 'tarde', NULL),
+(2, DATE_SUB(CURDATE(), INTERVAL 3 DAY), '12:00:00', '20:00:00', 'tarde', NULL),
+(2, DATE_SUB(CURDATE(), INTERVAL 2 DAY), '12:00:00', '20:00:00', 'tarde', NULL),
+(2, DATE_SUB(CURDATE(), INTERVAL 1 DAY), '12:00:00', '20:00:00', 'tarde', 'Cierra caja'),
+(2, CURDATE(), '12:00:00', '20:00:00', 'tarde', NULL),
+(2, DATE_ADD(CURDATE(), INTERVAL 1 DAY), '12:00:00', '20:00:00', 'tarde', NULL),
+(3, DATE_SUB(CURDATE(), INTERVAL 6 DAY), '10:00:00', '19:00:00', 'cerrada', NULL),
+(3, DATE_SUB(CURDATE(), INTERVAL 5 DAY), '10:00:00', '19:00:00', 'cerrada', NULL),
+(3, DATE_SUB(CURDATE(), INTERVAL 4 DAY), '10:00:00', '19:00:00', 'cerrada', NULL),
+(3, DATE_SUB(CURDATE(), INTERVAL 3 DAY), '10:00:00', '19:00:00', 'cerrada', NULL),
+(3, DATE_SUB(CURDATE(), INTERVAL 2 DAY), '10:00:00', '19:00:00', 'cerrada', NULL),
+(3, DATE_SUB(CURDATE(), INTERVAL 1 DAY), '10:00:00', '19:00:00', 'cerrada', 'Reviso inventario'),
+(3, CURDATE(), '10:00:00', '19:00:00', 'cerrada', NULL);
+
+-- Asistencias de dias ya cerrados, mezclando puntual, tarde, descanso, permiso y
+-- ausencia. Hoy queda sin marcar a proposito.
+INSERT INTO attendances
+    (employee_id, attendance_date, check_in, check_out, break_start, break_end,
+     state, check_in_method, check_out_method, notes) VALUES
+(1, DATE_SUB(CURDATE(), INTERVAL 6 DAY), '06:55:00', '15:04:00', '11:00:00', '11:30:00', 'presente', 'qr', 'qr', NULL),
+(1, DATE_SUB(CURDATE(), INTERVAL 5 DAY), '07:22:00', '15:10:00', '11:00:00', '11:30:00', 'presente', 'qr', 'qr', 'Entro con trafico'),
+(1, DATE_SUB(CURDATE(), INTERVAL 4 DAY), '06:51:00', '14:58:00', '11:00:00', '11:30:00', 'presente', 'manual', 'manual', NULL),
+(1, DATE_SUB(CURDATE(), INTERVAL 3 DAY), '06:55:00', '15:01:00', NULL, NULL, 'presente', 'qr', 'qr', NULL),
+(1, DATE_SUB(CURDATE(), INTERVAL 2 DAY), '08:10:00', '15:30:00', '11:30:00', '12:00:00', 'permiso', 'qr', 'qr', 'Autorizacion del sub jefe'),
+(1, DATE_SUB(CURDATE(), INTERVAL 1 DAY), '06:58:00', '15:03:00', '11:00:00', '11:30:00', 'presente', 'qr', 'qr', NULL),
+(2, DATE_SUB(CURDATE(), INTERVAL 6 DAY), '11:55:00', '20:07:00', '16:00:00', '16:30:00', 'presente', 'qr', 'qr', NULL),
+(2, DATE_SUB(CURDATE(), INTERVAL 5 DAY), '12:31:00', '20:12:00', '16:00:00', '16:45:00', 'presente', 'qr', 'qr', 'Llego tarde por transporte'),
+(2, DATE_SUB(CURDATE(), INTERVAL 4 DAY), NULL, NULL, NULL, NULL, 'ausente', NULL, NULL, 'No reporto'),
+(2, DATE_SUB(CURDATE(), INTERVAL 3 DAY), '11:58:00', '20:02:00', '16:00:00', '16:30:00', 'presente', 'qr', 'qr', NULL),
+(2, DATE_SUB(CURDATE(), INTERVAL 2 DAY), '12:05:00', '20:15:00', '16:00:00', '16:30:00', 'presente', 'qr', 'qr', NULL),
+(2, DATE_SUB(CURDATE(), INTERVAL 1 DAY), '11:49:00', '20:20:00', '16:00:00', '16:30:00', 'presente', 'manual', 'manual', 'Cierre de caja'),
+(3, DATE_SUB(CURDATE(), INTERVAL 6 DAY), '09:58:00', '19:05:00', '14:00:00', '14:30:00', 'presente', 'qr', 'qr', NULL),
+(3, DATE_SUB(CURDATE(), INTERVAL 5 DAY), '09:40:00', '19:00:00', '14:00:00', '14:30:00', 'presente', 'qr', 'qr', NULL),
+(3, DATE_SUB(CURDATE(), INTERVAL 4 DAY), '10:12:00', '19:22:00', '14:00:00', '14:30:00', 'presente', 'qr', 'qr', NULL),
+(3, DATE_SUB(CURDATE(), INTERVAL 3 DAY), '09:55:00', '19:01:00', '14:00:00', '14:30:00', 'presente', 'qr', 'qr', NULL),
+(3, DATE_SUB(CURDATE(), INTERVAL 2 DAY), '10:03:00', '19:10:00', '14:00:00', '14:30:00', 'presente', 'qr', 'qr', NULL),
+(3, DATE_SUB(CURDATE(), INTERVAL 1 DAY), '09:47:00', '19:35:00', '14:00:00', '15:00:00', 'presente', 'qr', 'qr', 'Inventario y cierre');
