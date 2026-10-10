@@ -311,7 +311,7 @@ public function updatePermisos($id)
         // excepciones guardadas se dejan intactas.
         $hayMatriz = ($_POST['perm_matrix'] ?? '') === '1';
 
-        if ($hayMatriz) {
+        if ($hayMatriz && (int) ($employee['role_is_admin'] ?? 0) !== 1) {
             Permiso::guardarPermisosDeEmpleado($id, $this->permisosDesdeChecks());
         }
 

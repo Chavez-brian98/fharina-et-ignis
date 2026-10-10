@@ -87,6 +87,26 @@ function setting($key, $default = null)
 }
 
 /**
+ * Directorio real de uploads (public/uploads) sin "config/.." en el path, con
+ * / al final. Lo crea si falta y trata de dejarlo escribible. Todo va con @:
+ * un warning de PHP aquí sale antes del header() de redirección del
+ * controlador y provoca el clásico "Cannot modify header information".
+ */
+function uploads_dir()
+{
+    $dir = dirname(__DIR__) . '/public/uploads';
+
+    if (!is_dir($dir)) {
+        @mkdir($dir, 0775, true);
+    }
+    if (is_dir($dir) && !is_writable($dir)) {
+        @chmod($dir, 0775);
+    }
+
+    return rtrim($dir, '/\\') . '/';
+}
+
+/**
  * Sube una imagen desde el formulario a public/uploads/ y devuelve su URL
  * (/uploads/nombre.ext). Devuelve null si no se envió archivo y false si falló
  * (en ese caso ya se aseguró de registrar el flash de error).
@@ -118,17 +138,14 @@ function upload_image($field)
     }
 
     $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
-    $uploadDir = __DIR__ . '/../public/uploads/';
-
-    if (!is_dir($uploadDir)) {
-        mkdir($uploadDir, 0775, true);
-    }
-
+    $uploadDir = uploads_dir();
     $filename = $field . '_' . bin2hex(random_bytes(8)) . '.' . $ext;
     $dest = $uploadDir . $filename;
 
-    if (!move_uploaded_file($file['tmp_name'], $dest)) {
-        flash('error', 'No se pudo guardar la imagen. Revisa los permisos de la carpeta uploads.');
+    if (!@move_uploaded_file($file['tmp_name'], $dest)) {
+        flash('error', is_writable($uploadDir)
+            ? 'No se pudo guardar la imagen. El servidor (www-data) no pudo mover el archivo temporal a public/uploads.'
+            : 'No se pudo guardar la imagen: la carpeta public/uploads no es escribible para el servidor. Revisa con chmod/chown: `chown -R www-data:www-data src/public/uploads`.');
         return false;
     }
 
@@ -159,7 +176,7 @@ function upload_gallery($field)
     }
 
     $allowedMimes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
-    $uploadDir = __DIR__ . '/../public/uploads/';
+    $uploadDir = uploads_dir();
     $uploaded = [];
 
     foreach ($files['name'] as $i => $name) {
@@ -184,15 +201,20 @@ function upload_gallery($field)
         }
 
         if (!is_dir($uploadDir)) {
-            mkdir($uploadDir, 0775, true);
+            @mkdir($uploadDir, 0775, true);
+        }
+        if (is_dir($uploadDir) && !is_writable($uploadDir)) {
+            @chmod($uploadDir, 0775);
         }
 
         $ext = strtolower(pathinfo($name, PATHINFO_EXTENSION));
         $filename = 'gallery_' . bin2hex(random_bytes(8)) . '.' . $ext;
         $dest = $uploadDir . $filename;
 
-        if (!move_uploaded_file($files['tmp_name'][$i], $dest)) {
-            flash('error', 'No se pudo guardar una de las fotos. Revisa los permisos de la carpeta uploads.');
+        if (!@move_uploaded_file($files['tmp_name'][$i], $dest)) {
+            flash('error', is_writable($uploadDir)
+                ? 'No se pudo guardar una de las fotos. El servidor no pudo mover el archivo temporal a public/uploads.'
+                : 'No se pudo guardar una de las fotos: la carpeta public/uploads no es escribible para el servidor.');
             return false;
         }
 
@@ -242,6 +264,19 @@ function puede($module, $action = 'view')
 function url($path = '')
 {
     return '/' . ltrim($path, '/');
+}
+
+/**
+ * Versión absoluta de url(): http(s)://host + ruta. La usan los terceros que
+ * necesitan una URL completa para volver al sitio (return_url/cancel_url de
+ * PayPal), no una ruta relativa.
+ */
+function urlAbsoluta($path = '')
+{
+    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+    $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+
+    return $scheme . '://' . $host . url($path);
 }
 
 /**

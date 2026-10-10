@@ -294,9 +294,9 @@ class SiteController
      * Checkout de pedidos a domicilio.
      *
      * GET  /finalizar                 → formulario (requiere sesión de cliente).
-     * GET  /finalizar?paypal=success  → vuelta de PayPal: captura y muestra
-     *                                    el seguimiento.
-     * GET  /finalizar?paypal=cancel   → el comprador canceló.
+     * GET  /finalizar?paypal=success&pedido={id} → vuelta de PayPal: captura y
+     *                                               muestra el seguimiento.
+     * GET  /finalizar?paypal=cancel&pedido={id}  → el comprador canceló.
      * POST /finalizar                 → crea pedido + domicilio + orden PayPal,
      *                                    responde JSON con la URL de aprobación.
      */
@@ -336,11 +336,42 @@ class SiteController
             exit;
         }
 
-        $paypalOrderId = trim($_GET['order'] ?? '');
-        if ($status !== 'success' || $paypalOrderId === '') {
+        // La return_url viaja con el pedido interno (pedido=N) porque el id de
+        // PayPal no se conoce hasta crear la orden; se resuelve desde la fila
+        // de order_payments que dejó registrarPagoIniciado().
+        $orderId = (int) ($_GET['pedido'] ?? 0);
+        $pagos = [];
+        $paypalOrderId = '';
+
+        if ($orderId > 0) {
+            $pagos = $this->deliveryModel->getPagos($orderId);
+            foreach ($pagos as $p) {
+                if (!empty($p['paypal_order_id'])) {
+                    $paypalOrderId = $p['paypal_order_id'];
+                    break;
+                }
+            }
+        }
+
+        // Compatibilidad: antes la vuelta traía ?order= con el id de PayPal.
+        if ($paypalOrderId === '') {
+            $paypalOrderId = trim($_GET['order'] ?? '');
+        }
+
+        if ($paypalOrderId === '') {
             flash('error', 'La pasarela devolvió una respuesta inesperada.');
             header('Location: ' . url('finalizar'));
             exit;
+        }
+
+        // Ya capturado (p. ej. al refrescar la vuelta): no se vuelve a cobrar.
+        foreach ($pagos as $p) {
+            if (!empty($p['paypal_capture_id'])) {
+                $embarque = $this->deliveryModel->getByOrderId((int) $p['order_id']);
+                flash('success', '¡Pago confirmado! Tu pedido ya está en camino de preparación.');
+                header('Location: ' . url('rastrear/' . $embarque['tracking_token']));
+                exit;
+            }
         }
 
         try {
@@ -452,11 +483,19 @@ class SiteController
         }
 
         try {
-            $orden = $paypal->createOrder($total, 'Pedido #' . $orderId);
+            $orden = $paypal->createOrder(
+                $total,
+                'Pedido #' . $orderId,
+                urlAbsoluta('finalizar?paypal=success&pedido=' . $orderId),
+                urlAbsoluta('finalizar?paypal=cancel&pedido=' . $orderId)
+            );
             if (empty($orden['id'])) {
                 throw new Exception('PayPal no devolvió un id de orden.');
             }
-            $this->deliveryModel->registrarPagoIniciado($orderId, $orden['id'], $total);
+            $pagoId = $this->deliveryModel->registrarPagoIniciado($orderId, $orden['id'], $total);
+            if (!$pagoId) {
+                throw new Exception('No se pudo registrar el pago iniciado.');
+            }
         } catch (Exception $e) {
             echo json_encode(['ok' => false, 'error' => 'paypal', 'message' => $e->getMessage(), 'order_id' => $orderId]);
             exit;

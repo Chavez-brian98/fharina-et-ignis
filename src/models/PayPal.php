@@ -53,9 +53,24 @@ class PayPal
      * Crea una orden de pago de captura inmediata.
      * Devuelve ['id', 'status', 'approve_link']; en el navegador se manda al
      * approve_link y, al aprobar, el comercio captura con captureOrder().
+     *
+     * $returnUrl/$cancelUrl son las URL absolutas a las que PayPal redirige al
+     * comprador tras aprobar o cancelar (sin ellas la vuelta al sitio no ocurre).
      */
-    public function createOrder($total, $reference): array
+    public function createOrder($total, $reference, $returnUrl = null, $cancelUrl = null): array
     {
+        $context = [
+            'brand_name' => setting('business_name', 'Fharina et Ignis'),
+            'shipping_preference' => 'NO_SHIPPING',
+            'user_action' => 'PAY_NOW',
+        ];
+        if ($returnUrl !== null && $returnUrl !== '') {
+            $context['return_url'] = $returnUrl;
+        }
+        if ($cancelUrl !== null && $cancelUrl !== '') {
+            $context['cancel_url'] = $cancelUrl;
+        }
+
         $body = json_encode([
             'intent' => 'CAPTURE',
             'purchase_units' => [[
@@ -65,11 +80,7 @@ class PayPal
                     'value' => number_format((float) $total, 2, '.', ''),
                 ],
             ]],
-            'application_context' => [
-                'brand_name' => setting('business_name', 'Fharina et Ignis'),
-                'shipping_preference' => 'NO_SHIPPING',
-                'user_action' => 'PAY_NOW',
-            ],
+            'application_context' => $context,
         ]);
 
         $resp = $this->request('POST', '/v2/checkout/orders', [

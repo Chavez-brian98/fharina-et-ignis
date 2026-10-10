@@ -147,6 +147,10 @@ $currency = setting('currency', '$');
                                     data-detail='<?= esc($detail) ?>'>
                                 <i class="fa-regular fa-eye"></i>
                             </button>
+                            <a class="btn-action" title="Imprimir orden (A4)" target="_blank"
+                               href="<?= url('purchases/pdf/' . $item['id']) ?>">
+                                <i class="fa-solid fa-print"></i>
+                            </a>
                             <?php if ($item['state'] === 'pendiente'): ?>
                                 <a class="btn-action" title="Editar" href="<?= url('purchases/edit/' . $item['id']) ?>">
                                     <i class="fa-regular fa-pen-to-square"></i>

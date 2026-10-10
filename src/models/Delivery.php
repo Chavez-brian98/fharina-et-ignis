@@ -423,7 +423,7 @@ class Delivery
         try {
             $this->conn->beginTransaction();
 
-            $stmt = $this->conn->prepare("SELECT id, order_id FROM order_payments
+            $stmt = $this->conn->prepare("SELECT id, order_id, paypal_capture_id FROM order_payments
                                           WHERE paypal_order_id = :ppo LIMIT 1;");
             $stmt->bindParam(':ppo', $paypalOrderId);
             $stmt->execute();
@@ -431,6 +431,14 @@ class Delivery
             if (!$pay) {
                 $this->conn->rollBack();
                 return false;
+            }
+
+            // Idempotente: si esta captura ya se confirmó (vuelta repetida de
+            // PayPal), no se re-escribe ni se vuelve a capturar.
+            if (!empty($pay['paypal_capture_id'])) {
+                $this->conn->rollBack();
+
+                return (int) $pay['order_id'];
             }
 
             $stmt = $this->conn->prepare("UPDATE order_payments

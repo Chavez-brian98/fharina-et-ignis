@@ -24,9 +24,15 @@ foreach ($details as $detalle) {
             </span>
         </p>
     </div>
-    <a href="<?= url('purchases') ?>" class="inline-flex items-center gap-2 rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors">
-        <i class="fa-solid fa-arrow-left"></i> Volver
-    </a>
+    <div class="flex items-center gap-2">
+        <a href="<?= url('purchases/pdf/' . $id) ?>" target="_blank"
+           class="inline-flex items-center gap-2 rounded-xl bg-orange-500 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-orange-500/25 hover:bg-orange-600 hover:shadow-orange-500/40 hover:-translate-y-px transition-all">
+            <i class="fa-solid fa-print"></i> Imprimir orden (A4)
+        </a>
+        <a href="<?= url('purchases') ?>" class="inline-flex items-center gap-2 rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors">
+            <i class="fa-solid fa-arrow-left"></i> Volver
+        </a>
+    </div>
 </div>
 
 <div class="max-w-5xl space-y-5">

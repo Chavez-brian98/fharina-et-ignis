@@ -207,6 +207,7 @@ class Permiso
 
         $db = self::db();
         $map = [];
+        $esAdmin = false;
 
         foreach (self::modulos() as $key => $modulo) {
             $map[$key] = ['view' => false, 'create' => false, 'edit' => false, 'delete' => false];
@@ -224,6 +225,7 @@ class Permiso
 
             if ($row && ((int) $row['is_admin'] === 1 || $row['role_status'] === 'active')) {
                 if ((int) $row['is_admin'] === 1) {
+                    $esAdmin = true;
                     foreach ($map as $key => &$acciones) {
                         $acciones = ['view' => true, 'create' => true, 'edit' => true, 'delete' => true];
                     }
@@ -253,22 +255,27 @@ class Permiso
             // Sin datos de permisos se deja la matriz en ceros (sin acceso).
         }
 
-        $stmt = $db->prepare("SELECT module, can_view, can_create, can_edit, can_delete
-                                FROM employee_permissions
-                                WHERE employee_id = :id;");
-        $stmt->bindParam(':id', $employeeId, PDO::PARAM_INT);
-        $stmt->execute();
+        // Las excepciones por empleado nunca recortan el acceso total: un
+        // administrador (is_admin) puede verse limitado sólo si se le quita la
+        // marca, no por una fila en employee_permissions.
+        if (!$esAdmin) {
+            $stmt = $db->prepare("SELECT module, can_view, can_create, can_edit, can_delete
+                                    FROM employee_permissions
+                                    WHERE employee_id = :id;");
+            $stmt->bindParam(':id', $employeeId, PDO::PARAM_INT);
+            $stmt->execute();
 
-        foreach ($stmt->fetchAll() as $perm) {
-            if (!isset($map[$perm['module']])) {
-                continue;
+            foreach ($stmt->fetchAll() as $perm) {
+                if (!isset($map[$perm['module']])) {
+                    continue;
+                }
+                $map[$perm['module']] = [
+                    'view' => (int) $perm['can_view'] === 1,
+                    'create' => (int) $perm['can_create'] === 1,
+                    'edit' => (int) $perm['can_edit'] === 1,
+                    'delete' => (int) $perm['can_delete'] === 1,
+                ];
             }
-            $map[$perm['module']] = [
-                'view' => (int) $perm['can_view'] === 1,
-                'create' => (int) $perm['can_create'] === 1,
-                'edit' => (int) $perm['can_edit'] === 1,
-                'delete' => (int) $perm['can_delete'] === 1,
-            ];
         }
 
         foreach (self::modulos() as $key => $modulo) {
