@@ -47,6 +47,10 @@ services:
   # Contenedor de Base de Datos
   db:
     image: mysql:8.0
+    # default-time-zone global en El Salvador (offset fijo, sin DST). Va como
+    # argumento de mysqld y no en un .cnf montado porque un bind-mount aparece
+    # como world-writable y MySQL ignora los archivos de config permisivos.
+    command: ["mysqld", "--default-time-zone=-06:00"]
     environment:
       MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-1234}
       MYSQL_DATABASE: ${DB_NAME:-fharina_et_ignis}

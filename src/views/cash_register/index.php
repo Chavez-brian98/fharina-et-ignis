@@ -475,7 +475,7 @@ $puedeAbrir = !$abierta;
         document.querySelectorAll('[data-caja-movimiento]').forEach((btn) => {
             btn.addEventListener('click', () => {
                 if (!movement) return;
-                document.getElementById('movementInput').value = btn.dataset.cajaMovement;
+                document.getElementById('movementInput').value = btn.dataset.cajaMovimiento;
                 openModal(movement);
             });
         });

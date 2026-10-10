@@ -51,6 +51,12 @@ class PosController
         $requiereCaja = puede('cash_register', 'view');
         $caja = $requiereCaja ? $this->cajaAbierta() : null;
 
+        // getOpenByEmployee() sólo trae la fila base de la caja; el POS muestra el
+        // efectivo esperado, que lo calcula getSummary().
+        if ($caja) {
+            $caja = $this->cashModel->getSummary($caja['id']) ?: $caja;
+        }
+
         $title = 'Punto de Venta';
         $currentModule = 'pos';
         $breadcrumbs = [

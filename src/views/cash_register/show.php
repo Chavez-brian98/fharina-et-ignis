@@ -681,10 +681,10 @@ $pagoDe = function ($metodo) use ($etiquetasPago) {
 
         // Movimiento de efectivo
         const movement = document.getElementById('movementModal');
-        document.querySelectorAll('[data-caja-movement]').forEach((btn) => {
+        document.querySelectorAll('[data-caja-movimiento]').forEach((btn) => {
             btn.addEventListener('click', () => {
                 if (!movement) return;
-                document.getElementById('movementInput').value = btn.dataset.cajaMovement;
+                document.getElementById('movementInput').value = btn.dataset.cajaMovimiento;
                 openModal(movement);
             });
         });
