@@ -76,14 +76,19 @@ $nombreDriver = trim(($delivery['driver_name'] ?? '') . ' ' . ($delivery['driver
                     </button>
                 </form>
                 <form method="POST" action="<?= url('deliveries/asignar/' . $delivery['id']) ?>" class="flex items-center gap-2">
-                    <input type="hidden" name="driver_id" id="driverSel" value="">
-                    <select onchange="document.getElementById('driverSel').value=this.value"
-                            class="rounded-xl border border-amber-200 bg-white px-3 py-2 text-sm outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100">
-                        <option value="">Asignar a…</option>
-                        <?php foreach ($empleados as $emp): ?>
-                            <option value="<?= (int) $emp['id'] ?>"><?= esc(trim($emp['name'] . ' ' . $emp['last_name'])) ?></option>
-                        <?php endforeach; ?>
-                    </select>
+                    <?php
+                    $empSearch = [
+                        'label' => '',
+                        'name' => 'driver_id',
+                        'inputId' => 'driverSel',
+                        'value' => 0,
+                        'required' => false,
+                        'placeholder' => 'Asignar a…',
+                        'empleados' => $empleados,
+                    ];
+                    require __DIR__ . '/../partials/employee_search.php';
+                    unset($empSearch);
+                    ?>
                     <button type="submit"
                             class="inline-flex items-center gap-2 rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-800 transition-colors">
                         Asignar

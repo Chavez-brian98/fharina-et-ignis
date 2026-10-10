@@ -261,8 +261,10 @@ class SupplierController
 
     /**
      * Normaliza y valida las líneas de "ingredientes que ofrece" del POST.
-     * Cada línea es un ingrediente (escrito como texto) + su precio por unidad.
-     * Devuelve null (con flash) si una línea no existe o es inválida.
+     * Cada línea es un producto (escrito como texto) + su precio por unidad.
+     * Primero valida TODO el POST (incluido el precio) y sólo después resuelve
+     * cada nombre contra el catálogo: si no existe, se crea (obtenerOCrear).
+     * Devuelve null (con flash) si una línea es inválida.
      */
     private function ofertasDelPost()
     {
@@ -273,8 +275,7 @@ class SupplierController
             return [];
         }
 
-        $ofertas = [];
-        $vistos = [];
+        $filas = [];
 
         foreach ($nombres as $i => $rawNombre) {
             $nombre = trim((string) $rawNombre);
@@ -284,29 +285,37 @@ class SupplierController
                 continue;
             }
 
-            $ingrediente = $this->ingredientModel->findByName($nombre);
-
-            if ($ingrediente === null) {
-                flash('error', 'El ingrediente "' . $nombre . '" no existe en el catálogo. Elige una de las sugerencias.');
-                return null;
-            }
-
             $precioRaw = trim((string) ($precios[$i] ?? ''));
             $precio = (float) str_replace(',', '.', $precioRaw);
 
             if ($precioRaw === '' || !is_numeric(str_replace(',', '.', $precioRaw)) || $precio < 0) {
-                flash('error', 'Indica un precio válido (mayor o igual que cero) para cada ingrediente.');
+                flash('error', 'Indica un precio válido (mayor o igual que cero) para cada producto.');
                 return null;
+            }
+
+            $filas[] = ['nombre' => $nombre, 'precio' => $precio];
+        }
+
+        // Todo el POST es válido: ahora sí se resuelve / crea cada producto, así
+        // un error de precio no deja ingredientes creados de forma fantasma.
+        $ofertas = [];
+        $vistos = [];
+
+        foreach ($filas as $fila) {
+            $ingrediente = $this->ingredientModel->obtenerOCrear($fila['nombre']);
+
+            if ($ingrediente === null) {
+                continue;
             }
 
             $ingredientId = (int) $ingrediente['id'];
 
-            // Mismo ingrediente en dos filas: gana la última.
+            // Mismo producto en dos filas: gana la última.
             $vistos[$ingredientId] = true;
             $ofertas[$ingredientId] = [
                 'ingredient_id' => $ingredientId,
                 'ingredient_name' => $ingrediente['name'],
-                'unit_price' => $precio,
+                'unit_price' => $fila['precio'],
             ];
         }
 

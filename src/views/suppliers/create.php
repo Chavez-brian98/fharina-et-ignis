@@ -111,7 +111,7 @@ $ofertasCatalogo = array_map(function ($ing) {
                 <div class="flex items-center justify-between border-b border-gray-100 bg-gradient-to-r from-orange-50/60 to-white px-5 py-4">
                     <div>
                         <h3 class="text-sm font-semibold text-gray-900"><i class="fa-solid fa-basket-shopping text-orange-500 mr-2"></i>Ingredientes que ofrece</h3>
-                        <p class="text-xs text-gray-400 mt-0.5">Elige los ingredientes que entrega este proveedor y el precio por unidad.</p>
+                        <p class="text-xs text-gray-400 mt-0.5">Escribe cualquier producto que entregue este proveedor y el precio por unidad. Si no está en el catálogo, se agrega al guardar.</p>
                     </div>
                     <button type="button" id="addOffer"
                             class="inline-flex items-center gap-1.5 rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-semibold text-white shadow-md shadow-orange-500/25 hover:bg-orange-600 transition-all">
@@ -227,8 +227,8 @@ $ofertasCatalogo = array_map(function ($ing) {
 
 <script>
 // Ofertas de ingredientes: agregar/quitar filas y sugerir la unidad escribiendo.
-// El ingrediente se escribe como texto (autocompletado vía datalist) y al
-// escribirse se valida contra el catálogo para mostrar su unidad de medida.
+// El producto se escribe como texto; si coincide con el catálogo se muestra su
+// unidad, si no, se aclara que se agregará al guardar (nunca se rechaza).
 (function () {
     const body = document.getElementById('offersBody');
     const template = document.getElementById('offerTemplate');
@@ -269,8 +269,8 @@ $ofertasCatalogo = array_map(function ($ing) {
             hint.textContent = 'Precio por ' + match.u;
             if (precio) precio.classList.remove('border-red-300');
         } else {
-            hint.textContent = 'Este ingrediente no está en el catálogo';
-            if (precio) precio.classList.add('border-red-300');
+            hint.textContent = 'Se agregará al catálogo al guardar';
+            if (precio) precio.classList.remove('border-red-300');
         }
     }
 

@@ -157,7 +157,7 @@ $currency = setting('currency', '$');
                                 </a>
                             <?php endif; ?>
                             <?php if (in_array($item['state'], ['pendiente', 'parcial'], true)): ?>
-                                <a class="btn-action btn-toggle text-green-500 hover:bg-green-50"
+                                <a class="btn-action text-green-500 hover:bg-green-50"
                                    title="Recibir mercancía"
                                    href="<?= url('purchases/edit/' . $item['id']) ?>">
                                     <i class="fa-solid fa-box-open"></i>

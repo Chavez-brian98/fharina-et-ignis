@@ -33,14 +33,19 @@ $nombre = $shift['nombre'] ?? '';
 
         <form action="<?= url('schedules/update/' . (int) ($shift['id'] ?? 0)) ?>" method="POST" class="px-6 py-6 grid grid-cols-1 md:grid-cols-2 gap-4">
             <div class="md:col-span-2">
-                <label for="employee_id" class="form-label">Empleado <span class="text-red-500">*</span></label>
-                <select id="employee_id" name="employee_id" class="form-input" required>
-                    <?php foreach ($empleados as $e): ?>
-                        <option value="<?= (int) $e['id'] ?>" <?= (int) $e['id'] === $employeeId ? 'selected' : '' ?>>
-                            <?= esc(trim($e['name'] . ' ' . $e['last_name'])) ?> &middot; <?= esc($e['role']) ?>
-                        </option>
-                    <?php endforeach; ?>
-                </select>
+                <?php
+                $empSearch = [
+                    'label' => 'Empleado',
+                    'name' => 'employee_id',
+                    'inputId' => 'employee_id',
+                    'value' => $employeeId,
+                    'required' => true,
+                    'placeholder' => 'Busca por nombre, apellido o rol…',
+                    'empleados' => $empleados,
+                ];
+                require __DIR__ . '/../partials/employee_search.php';
+                unset($empSearch);
+                ?>
             </div>
 
             <div>
@@ -88,13 +93,23 @@ $nombre = $shift['nombre'] ?? '';
     <!-- Ajuste de la asistencia de ese dia -->
     <?php if (puede('schedules', 'edit')): ?>
         <div class="rounded-2xl border border-gray-200 bg-white shadow-xl shadow-gray-200/60 overflow-hidden">
-            <div class="border-b border-gray-100 px-6 py-5">
-                <h2 class="font-semibold text-gray-900">
-                    <i class="fa-solid fa-user-clock text-orange-500 mr-2"></i>Asistencia de este día
-                </h2>
-                <p class="mt-1 text-sm text-gray-500">
-                    Corrección manual: para fechar días pasados o corregir una marcación.
-                </p>
+            <div class="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 px-6 py-5">
+                <div>
+                    <h2 class="font-semibold text-gray-900">
+                        <i class="fa-solid fa-user-clock text-orange-500 mr-2"></i>Asistencia de este día
+                    </h2>
+                    <p class="mt-1 text-sm text-gray-500">
+                        Corrección manual: para fechar días pasados o corregir una marcación.
+                    </p>
+                </div>
+                <?php if ($asistencia && $asistencia['id']): ?>
+                    <button type="button" class="btn-action btn-delete text-red-400 hover:bg-red-50"
+                            title="Eliminar este registro de asistencia"
+                            data-url="<?= url('schedules/attendanceDelete/' . (int) $asistencia['id']) ?>"
+                            data-name="la asistencia del <?= esc(date('d/m/Y', strtotime($shift['work_date'] ?? 'now'))) ?>">
+                        <i class="fa-solid fa-trash"></i>
+                    </button>
+                <?php endif; ?>
             </div>
 
             <form action="<?= url('schedules/attendance/' . $employeeId) ?>" method="POST" class="px-6 py-6 grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -130,14 +145,8 @@ $nombre = $shift['nombre'] ?? '';
                 </div>
 
                 <div class="md:col-span-2 flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 pt-4">
-                    <?php if ($asistencia && $asistencia['id']): ?>
-                        <button type="button" class="btn-action btn-delete" title="Eliminar el registro"
-                                data-url="<?= url('schedules/attendanceDelete/' . (int) $asistencia['id']) ?>"
-                                data-name="la asistencia del <?= esc(date('d/m/Y', strtotime($shift['work_date'] ?? 'now'))) ?>">
-                            <i class="fa-solid fa-trash"></i> Eliminar registro
-                        </button>
-                    <?php else: ?>
-                        <span class="text-sm text-gray-400">Todavía no hay registro de asistencia para este día.</span>
+                    <?php if (!($asistencia && $asistencia['id'])): ?>
+                        <span class="text-sm text-gray-400">Todavía no hay registro de asistencia para este día. La primera marcación creará el registro.</span>
                     <?php endif; ?>
 
                     <button type="submit" class="inline-flex items-center gap-2 rounded-xl bg-gray-800 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition-colors hover:bg-gray-900">

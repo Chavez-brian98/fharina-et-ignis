@@ -251,3 +251,41 @@ body.sidebar-collapsed .brand-box:hover .brand-expand {
 .shake {
     animation: shake .4s ease-in-out;
 }
+
+/* Buscador de empleado (partial employee_search.php): input + sugerencias */
+.emp-search-list {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    z-index: 30;
+    max-height: 210px;
+    overflow-y: auto;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    background: #fff;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, .08), 0 4px 10px -5px rgba(0, 0, 0, .04);
+    list-style: none;
+    margin: 0;
+    padding: 4px;
+}
+.emp-search-list li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .5rem;
+    padding: .55rem .75rem;
+    font-size: .85rem;
+    color: #374151;
+    cursor: pointer;
+    border-radius: 8px;
+}
+.emp-search-list li:hover,
+.emp-search-list li.active {
+    background: var(--color-primary-50);
+    color: var(--color-primary-700);
+}
+.emp-search-list li.disabled {
+    opacity: .5;
+    cursor: not-allowed;
+}

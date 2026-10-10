@@ -118,6 +118,63 @@ class Ingredient
      * Normaliza para comparar: minúsculas, sin acentos ni ñ. Reutilizada por el
      * servidor (findByName) y por las vistas al volver a pintar el formulario.
      */
+    /**
+     * Resuelve el ingrediente que coincide con el nombre escrito (insensible a
+     * mayúsculas y a acentos) o lo crea en el catálogo si no existe. Es la
+     * puerta para que un proveedor pueda ofrecer CUALQUIER producto sin que el
+     * sistema lo rechace: si el nombre no está, se da de alta con una unidad de
+     * medida por defecto y costo 0 (Compras lo sobrescribe al recibir).
+     *
+     * Si el nombre ya existe pero está inactivo, se reutiliza reactivándolo
+     * (evita chocar con la UNIQUE de `name`).
+     */
+    public function obtenerOCrear($nombre, $unidad = 'unidad')
+    {
+        $objetivo = self::normalizar((string) $nombre);
+
+        if ($objetivo === '') {
+            return null;
+        }
+
+        $stmt = $this->conn->prepare(
+            "SELECT id, name, unit_of_measure, status FROM " . $this->table . ";"
+        );
+        $stmt->execute();
+
+        foreach ($stmt->fetchAll() as $ingrediente) {
+            if (self::normalizar($ingrediente['name']) === $objetivo) {
+                if ($ingrediente['status'] !== 'active') {
+                    $act = $this->conn->prepare(
+                        "UPDATE " . $this->table . " SET status = 'active' WHERE id = :id;"
+                    );
+                    $act->bindValue(':id', (int) $ingrediente['id'], PDO::PARAM_INT);
+                    $act->execute();
+
+                    $ingrediente['status'] = 'active';
+                }
+
+                return $ingrediente;
+            }
+        }
+
+        $nuevoNombre = mb_convert_case(trim((string) $nombre), MB_CASE_TITLE, 'UTF-8');
+        $ins = $this->conn->prepare(
+            "INSERT INTO " . $this->table . "
+               (name, unit_of_measure, current_stock, minimum_stock, unit_cost, status)
+             VALUES (:name, :unidad, 0, 0, 0, 'active');"
+        );
+        $ins->bindParam(':name', $nuevoNombre);
+        $ins->bindParam(':unidad', $unidad, PDO::PARAM_STR);
+        $ins->execute();
+
+        return [
+            'id' => (int) $this->conn->lastInsertId(),
+            'name' => $nuevoNombre,
+            'unit_of_measure' => $unidad,
+            'status' => 'active',
+        ];
+    }
+
     public static function normalizar($texto)
     {
         $texto = mb_strtolower(trim((string) $texto), 'UTF-8');

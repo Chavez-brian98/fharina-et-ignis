@@ -343,7 +343,7 @@ foreach ($details as $detalle) {
     <!-- Acciones sobre la orden -->
     <?php if (in_array($purchase['state'], ['pendiente', 'parcial'], true)): ?>
         <div class="flex flex-wrap items-center gap-3">
-            <button type="button" class="btn-action btn-toggle px-4 py-2.5 rounded-xl text-red-500 hover:bg-red-50"
+            <button type="button" class="btn-delete inline-flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-bold text-red-600 shadow-sm transition-colors hover:bg-red-100"
                     title="Cancelar la orden"
                     data-url="<?= url('purchases/cancel/' . $id) ?>"
                     data-name="la orden de compra #<?= (int) $id ?>">

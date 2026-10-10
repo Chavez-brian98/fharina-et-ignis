@@ -27,16 +27,19 @@
 
     <form action="<?= url('schedules/store') ?>" method="POST" class="px-6 py-6 grid grid-cols-1 md:grid-cols-2 gap-4">
         <div class="md:col-span-2">
-            <label for="employee_id" class="form-label">Empleado <span class="text-red-500">*</span></label>
-            <select id="employee_id" name="employee_id" class="form-input" required>
-                <option value="">-- Seleccionar --</option>
-                <?php foreach ($empleados as $e): ?>
-                    <option value="<?= (int) $e['id'] ?>"
-                        <?= (string) old('employee_id') === (string) $e['id'] ? 'selected' : '' ?>>
-                        <?= esc(trim($e['name'] . ' ' . $e['last_name'])) ?> &middot; <?= esc($e['role']) ?>
-                    </option>
-                <?php endforeach; ?>
-            </select>
+            <?php
+            $empSearch = [
+                'label' => 'Empleado',
+                'name' => 'employee_id',
+                'inputId' => 'employee_id',
+                'value' => (int) ($_POST['employee_id'] ?? 0),
+                'required' => true,
+                'placeholder' => 'Busca por nombre, apellido o rol…',
+                'empleados' => $empleados,
+            ];
+            require __DIR__ . '/../partials/employee_search.php';
+            unset($empSearch);
+            ?>
         </div>
 
         <div>

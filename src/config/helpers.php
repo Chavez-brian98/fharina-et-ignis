@@ -102,6 +102,11 @@ function uploads_dir()
     if (is_dir($dir) && !is_writable($dir)) {
         @chmod($dir, 0775);
     }
+    if (is_dir($dir) && !is_writable($dir)) {
+        // Segundo intento: 0777 funciona aun si el dueno del directorio difiere
+        // de www-data (bind-mount de Docker Desktop o servidores sin chown).
+        @chmod($dir, 0777);
+    }
 
     return rtrim($dir, '/\\') . '/';
 }

@@ -253,16 +253,28 @@ $puedeAbrir = !$abierta;
                 <button type="button" class="btn-close-modal text-white/80 hover:text-white text-xl leading-none">&times;</button>
             </div>
             <form method="post" action="<?= url('cash_register/open') ?>" class="px-6 py-5">
-                <label for="assignEmployee" class="form-label">Cajero</label>
-                <select name="employee_id" id="assignEmployee" required class="form-input">
-                    <option value="">Selecciona un cajero...</option>
-                    <?php foreach ($cajeros as $c): ?>
-                        <option value="<?= (int) $c['id'] ?>" <?= (int) $c['has_open_register'] === 1 ? 'disabled' : '' ?>>
-                            <?= esc(trim($c['name'] . ' ' . $c['last_name'])) ?>
-                            <?= (int) $c['has_open_register'] === 1 ? '— ya tiene caja abierta' : '' ?>
-                        </option>
-                    <?php endforeach; ?>
-                </select>
+                <?php
+                $empSearch = [
+                    'label' => 'Cajero',
+                    'name' => 'employee_id',
+                    'inputId' => 'assignEmployee',
+                    'value' => 0,
+                    'required' => true,
+                    'placeholder' => 'Busca al cajero…',
+                    'empleados' => array_map(function ($c) {
+                        return [
+                            'id' => (int) $c['id'],
+                            'name' => $c['name'] ?? '',
+                            'last_name' => $c['last_name'] ?? '',
+                            'role' => '',
+                            'disabled' => (int) ($c['has_open_register'] ?? 0) === 1,
+                            'note' => 'Ya tiene caja abierta',
+                        ];
+                    }, $cajeros),
+                ];
+                require __DIR__ . '/../partials/employee_search.php';
+                unset($empSearch);
+                ?>
 
                 <label for="assignAmount" class="form-label mt-4">Fondo inicial</label>
                 <input type="number" name="initial_amount" id="assignAmount" step="0.01" min="0"
