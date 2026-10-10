@@ -33,6 +33,11 @@ class PayPal
         return $this->clientId !== '' && $this->secret !== '';
     }
 
+    public function clientId(): string
+    {
+        return $this->clientId;
+    }
+
     private function accessToken(): string
     {
         if ($this->token !== null) {

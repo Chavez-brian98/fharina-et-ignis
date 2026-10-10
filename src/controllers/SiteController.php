@@ -308,7 +308,15 @@ class SiteController
         }
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            $this->crearPedidoDomicilio();
+            $input = json_decode(file_get_contents('php://input'), true);
+            if (!is_array($input)) {
+                $input = $_POST;
+            }
+            if (($input['action'] ?? '') === 'capture') {
+                $this->capturarPedidoDomicilio($input);
+                return;
+            }
+            $this->crearPedidoDomicilio($input);
             return;
         }
 
@@ -318,7 +326,9 @@ class SiteController
         }
 
         $cliente = $this->clientModel->findByEmail($_SESSION['cliente']['email']);
-        $paypalConfigurado = (new PayPal())->configured();
+        $paypal = new PayPal();
+        $paypalConfigurado = $paypal->configured();
+        $paypalClientId = $paypal->clientId();
 
         $title = 'Finalizar pedido';
         $sitePage = 'checkout';
@@ -399,8 +409,75 @@ class SiteController
         exit;
     }
 
+    /**
+     * Captura JSON del SDK JS de PayPal (in-context). El navegador ya aprobó
+     * la orden, así que aquí se cobra y se devuelve el seguimiento. Idempotente
+     * frente a reintentos: si la fila ya trae capture_id, no se vuelve a cobrar.
+     */
+    private function capturarPedidoDomicilio(array $input)
+    {
+        header('Content-Type: application/json; charset=utf-8');
+
+        if (empty($_SESSION['cliente'])) {
+            echo json_encode(['ok' => false, 'error' => 'login']);
+            exit;
+        }
+
+        $orderId = (int) ($input['order_id'] ?? 0);
+        $paypalOrderId = trim((string) ($input['paypal_order_id'] ?? ''));
+
+        $pagos = [];
+        if ($orderId > 0) {
+            $pagos = $this->deliveryModel->getPagos($orderId);
+            if ($paypalOrderId === '') {
+                foreach ($pagos as $p) {
+                    if (!empty($p['paypal_order_id'])) {
+                        $paypalOrderId = $p['paypal_order_id'];
+                        break;
+                    }
+                }
+            }
+        }
+
+        if ($paypalOrderId === '') {
+            echo json_encode(['ok' => false, 'error' => 'paypal', 'message' => 'Orden de PayPal no informada.']);
+            exit;
+        }
+
+        // Ya capturado (reintento/refresco): no se vuelve a cobrar.
+        foreach ($pagos as $p) {
+            if (!empty($p['paypal_capture_id'])) {
+                $embarque = $this->deliveryModel->getByOrderId((int) $p['order_id']);
+                echo json_encode(['ok' => true, 'redirect' => url('rastrear/' . $embarque['tracking_token'])]);
+                exit;
+            }
+        }
+
+        try {
+            $capture = (new PayPal())->captureOrder($paypalOrderId);
+            if (($capture['capture_status'] ?? '') !== 'COMPLETED') {
+                throw new Exception('El pago no fue completado por PayPal.');
+            }
+            $orderId = $this->deliveryModel->confirmarPago(
+                $capture['paypal_order_id'],
+                $capture['capture_id'],
+                (float) ($capture['amount'] ?? 0)
+            );
+            if (!$orderId) {
+                throw new Exception('No se encontró el pedido asociado al pago.');
+            }
+        } catch (Exception $e) {
+            echo json_encode(['ok' => false, 'error' => 'paypal', 'message' => $e->getMessage()]);
+            exit;
+        }
+
+        $delivery = $this->deliveryModel->getByOrderId($orderId);
+        echo json_encode(['ok' => true, 'redirect' => url('rastrear/' . $delivery['tracking_token'])]);
+        exit;
+    }
+
     /** Crea el pedido a domicilio y la orden de pago PayPal (JSON). */
-    private function crearPedidoDomicilio()
+    private function crearPedidoDomicilio(?array $input = null)
     {
         header('Content-Type: application/json; charset=utf-8');
 
@@ -411,9 +488,11 @@ class SiteController
 
         // El cliente viene con Content-Type: application/json, así que NO viene
         // en $_POST: se lee del body.
-        $input = json_decode(file_get_contents('php://input'), true);
-        if (!is_array($input)) {
-            $input = $_POST;
+        if ($input === null) {
+            $input = json_decode(file_get_contents('php://input'), true);
+            if (!is_array($input)) {
+                $input = $_POST;
+            }
         }
 
         $items = $this->itemsDelPost($input);
@@ -483,11 +562,15 @@ class SiteController
         }
 
         try {
+            // 'js' (SDK in-context, popup) no necesita URLs de vuelta: el popup
+            // de PayPal resuelve la aprobación y onApprove captura. 'redirect' es
+            // el modo clásico de página completa (fallback si el SDK no carga).
+            $flow = ($input['flow'] ?? 'redirect') === 'js' ? 'js' : 'redirect';
             $orden = $paypal->createOrder(
                 $total,
                 'Pedido #' . $orderId,
-                urlAbsoluta('finalizar?paypal=success&pedido=' . $orderId),
-                urlAbsoluta('finalizar?paypal=cancel&pedido=' . $orderId)
+                $flow === 'redirect' ? urlAbsoluta('finalizar?paypal=success&pedido=' . $orderId) : null,
+                $flow === 'redirect' ? urlAbsoluta('finalizar?paypal=cancel&pedido=' . $orderId) : null
             );
             if (empty($orden['id'])) {
                 throw new Exception('PayPal no devolvió un id de orden.');
